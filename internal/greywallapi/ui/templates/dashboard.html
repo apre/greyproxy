@@ -1,38 +1,36 @@
 {{define "content"}}
 <div class="space-y-6">
     <div class="flex justify-between items-center">
-        <div>
-            <h1 class="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p class="text-muted-foreground mt-1">Network traffic statistics and monitoring</p>
-        </div>
-        <div class="flex items-center space-x-4">
-            <select id="period-selector"
-                    class="px-4 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    hx-get="{{.Prefix}}/htmx/dashboard-stats"
-                    hx-target="#dashboard-content"
-                    hx-swap="innerHTML"
-                    hx-include="#auto-refresh">
-                <option value="today">Today</option>
-                <option value="7d">Last 7 Days</option>
-                <option value="30d">Last 30 Days</option>
-            </select>
+        <h1 class="text-3xl font-bold text-foreground">Dashboard</h1>
+        <button hx-get="{{.Prefix}}/htmx/dashboard-stats" hx-target="#dashboard-content" hx-swap="innerHTML"
+            hx-include="#period-selector, #auto-refresh"
+            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring">
+            <svg class="htmx-indicator -ml-1 mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Refresh
+        </button>
+    </div>
 
-            <label class="flex items-center space-x-2 cursor-pointer">
-                <input type="checkbox" id="auto-refresh" name="auto_refresh"
-                       class="w-4 h-4 text-primary border-border rounded focus:ring-ring"
-                       onchange="toggleAutoRefresh(this.checked)">
-                <span class="text-sm text-foreground">Auto-refresh</span>
-            </label>
+    <div class="flex items-center space-x-4">
+        <select id="period-selector"
+                class="px-4 py-2 border border-border rounded-lg bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                hx-get="{{.Prefix}}/htmx/dashboard-stats"
+                hx-target="#dashboard-content"
+                hx-swap="innerHTML"
+                hx-include="#auto-refresh">
+            <option value="today">Today</option>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+        </select>
 
-            <button class="px-4 py-2 bg-card border border-border rounded-lg text-foreground hover:bg-muted transition"
-                    hx-get="{{.Prefix}}/htmx/dashboard-stats"
-                    hx-target="#dashboard-content"
-                    hx-swap="innerHTML"
-                    hx-include="#period-selector, #auto-refresh">
-                <span class="htmx-indicator inline-block w-4 h-4 border-2 border-foreground border-t-transparent rounded-full animate-spin"></span>
-                ↻ Refresh
-            </button>
-        </div>
+        <label class="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" id="auto-refresh" name="auto_refresh"
+                   class="w-4 h-4 text-primary border-border rounded focus:ring-ring"
+                   onchange="toggleAutoRefresh(this.checked)">
+            <span class="text-sm text-muted-foreground">Auto-refresh</span>
+        </label>
     </div>
 
     <div id="dashboard-content"

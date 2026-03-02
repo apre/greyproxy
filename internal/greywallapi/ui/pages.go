@@ -246,7 +246,7 @@ func RegisterPageRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 		logsTmpl.Execute(c.Writer, PageData{
 			CurrentPath: c.Request.URL.Path,
 			Prefix:      prefix,
-			Title:       "Request Logs - Greywall",
+			Title:       "Logs - Greywall",
 			Containers:  getContainers(db),
 		})
 	})

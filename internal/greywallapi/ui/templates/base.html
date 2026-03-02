@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
+    <link rel="icon" type="image/svg+xml" href="{{.Prefix}}/static/icons/favicon.svg">
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -21,7 +22,7 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        sans: ['Aspekta', 'system-ui', 'sans-serif'],
                         serif: ['Source Serif Pro', 'Georgia', 'serif'],
                     },
                     colors: {
@@ -54,13 +55,12 @@
     {{block "head" .}}{{end}}
 
     <style>
-        @font-face { font-family: 'Inter'; src: url('{{.Prefix}}/static/fonts/inter-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
-        @font-face { font-family: 'Inter'; src: url('{{.Prefix}}/static/fonts/inter-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
-        @font-face { font-family: 'Inter'; src: url('{{.Prefix}}/static/fonts/inter-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
-        @font-face { font-family: 'Source Serif Pro'; src: url('{{.Prefix}}/static/fonts/source-serif-pro-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Aspekta'; src: url('{{.Prefix}}/static/fonts/Aspekta-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Aspekta'; src: url('{{.Prefix}}/static/fonts/Aspekta-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Aspekta'; src: url('{{.Prefix}}/static/fonts/Aspekta-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
         @font-face { font-family: 'Source Serif Pro'; src: url('{{.Prefix}}/static/fonts/source-serif-pro-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
         @font-face { font-family: 'Source Serif Pro'; src: url('{{.Prefix}}/static/fonts/source-serif-pro-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        body { font-family: 'Aspekta', system-ui, -apple-system, sans-serif; }
         h1,h2,h3,h4,h5,h6 { font-family: 'Source Serif Pro', Georgia, serif; }
         .htmx-indicator { display: none; }
         .htmx-request .htmx-indicator { display: inline-block; }
@@ -73,37 +73,70 @@
     <nav class="bg-card border-b border-border">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
-                <div class="flex">
-                    <div class="flex-shrink-0 flex items-center">
-                        <span class="text-2xl">🌐</span>
-                        <span class="ml-2 text-xl font-semibold text-foreground">Proxy Dashboard</span>
+                <div class="flex-shrink-0 flex items-center">
+                    <img src="{{.Prefix}}/static/icons/greyhaven-icon.svg" alt="Greywall" class="h-10 w-auto">
+                    <div class="ml-3">
+                        <span class="block text-xl font-semibold font-serif text-foreground leading-tight">Greywall</span>
+                        <span class="block text-xs text-muted-foreground leading-tight">GreyHaven Sandbox</span>
                     </div>
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="{{.Prefix}}/dashboard"
-                            class="{{if contains .CurrentPath "/dashboard"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Dashboard
-                        </a>
-                        <a href="{{.Prefix}}/pending"
-                            class="{{if contains .CurrentPath "/pending"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Pending Requests
-                            <span id="pending-badge" class="hidden ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-primary-foreground bg-primary rounded-full min-w-[1.25rem]"></span>
-                        </a>
-                        <a href="{{.Prefix}}/rules"
-                            class="{{if contains .CurrentPath "/rules"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Rules
-                        </a>
-                        <a href="{{.Prefix}}/logs"
-                            class="{{if contains .CurrentPath "/logs"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Request Logs
-                        </a>
-                    </div>
+                </div>
+                <!-- Mobile menu button -->
+                <div class="flex items-center sm:hidden">
+                    <button type="button" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
+                        class="inline-flex items-center justify-center p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                        </svg>
+                    </button>
+                </div>
+                <!-- Desktop nav (right-aligned) -->
+                <div class="hidden sm:flex sm:space-x-8">
+                    <a href="{{.Prefix}}/dashboard"
+                        class="{{if contains .CurrentPath "/dashboard"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        Dashboard
+                    </a>
+                    <a href="{{.Prefix}}/pending"
+                        class="{{if contains .CurrentPath "/pending"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        Pending Requests
+                        <span id="pending-badge" class="hidden ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-primary-foreground bg-primary rounded-full min-w-[1.25rem]"></span>
+                    </a>
+                    <a href="{{.Prefix}}/rules"
+                        class="{{if contains .CurrentPath "/rules"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        Rules
+                    </a>
+                    <a href="{{.Prefix}}/logs"
+                        class="{{if contains .CurrentPath "/logs"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                        Logs
+                    </a>
+                </div>
+            </div>
+            <!-- Mobile menu dropdown -->
+            <div id="mobile-menu" class="hidden sm:hidden border-t border-border">
+                <div class="py-2 space-y-1">
+                    <a href="{{.Prefix}}/dashboard"
+                        class="{{if contains .CurrentPath "/dashboard"}}bg-muted border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:bg-muted hover:text-foreground{{end}} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                        Dashboard
+                    </a>
+                    <a href="{{.Prefix}}/pending"
+                        class="{{if contains .CurrentPath "/pending"}}bg-muted border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:bg-muted hover:text-foreground{{end}} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                        Pending Requests
+                        <span id="pending-badge-mobile" class="hidden ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-primary-foreground bg-primary rounded-full min-w-[1.25rem]"></span>
+                    </a>
+                    <a href="{{.Prefix}}/rules"
+                        class="{{if contains .CurrentPath "/rules"}}bg-muted border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:bg-muted hover:text-foreground{{end}} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                        Rules
+                    </a>
+                    <a href="{{.Prefix}}/logs"
+                        class="{{if contains .CurrentPath "/logs"}}bg-muted border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:bg-muted hover:text-foreground{{end}} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                        Logs
+                    </a>
                 </div>
             </div>
         </div>
     </nav>
 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {{block "content" .}}{{end}}
     </main>
 
@@ -146,14 +179,19 @@
             var reconnectDelay = 1000;
             var MAX_RECONNECT_DELAY = 30000;
             var badge = document.getElementById('pending-badge');
+            var badgeMobile = document.getElementById('pending-badge-mobile');
 
             function updateBadge(count) {
-                if (count > 0) {
-                    badge.textContent = count > 99 ? '99+' : count;
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
+                var text = count > 99 ? '99+' : count;
+                [badge, badgeMobile].forEach(function(el) {
+                    if (!el) return;
+                    if (count > 0) {
+                        el.textContent = text;
+                        el.classList.remove('hidden');
+                    } else {
+                        el.classList.add('hidden');
+                    }
+                });
             }
 
             function fetchPendingCount() {
