@@ -31,6 +31,7 @@ type RuleJSON struct {
 	LastUsedAt         *string `json:"last_used_at"`
 	CreatedBy          string  `json:"created_by"`
 	Notes              *string `json:"notes"`
+	IsActive           bool    `json:"is_active"`
 }
 
 func (r *Rule) ToJSON() RuleJSON {
@@ -43,6 +44,7 @@ func (r *Rule) ToJSON() RuleJSON {
 		Action:             r.Action,
 		CreatedAt:          r.CreatedAt.UTC().Format(time.RFC3339),
 		CreatedBy:          r.CreatedBy,
+		IsActive:           !r.ExpiresAt.Valid || r.ExpiresAt.Time.After(time.Now()),
 	}
 	if r.ExpiresAt.Valid {
 		s := r.ExpiresAt.Time.UTC().Format(time.RFC3339)
@@ -119,6 +121,7 @@ type RequestLog struct {
 	Result           string         `json:"result"`
 	RuleID           sql.NullInt64  `json:"rule_id"`
 	ResponseTimeMs   sql.NullInt64  `json:"response_time_ms"`
+	RuleSummary      sql.NullString `json:"-"` // Computed at query time via JOIN
 }
 
 type RequestLogJSON struct {
@@ -133,6 +136,7 @@ type RequestLogJSON struct {
 	Result           string  `json:"result"`
 	RuleID           *int64  `json:"rule_id"`
 	ResponseTimeMs   *int64  `json:"response_time_ms"`
+	RuleSummary      *string `json:"rule_summary,omitempty"`
 }
 
 func (l *RequestLog) ToJSON() RequestLogJSON {
@@ -160,6 +164,9 @@ func (l *RequestLog) ToJSON() RequestLogJSON {
 	}
 	if l.ResponseTimeMs.Valid {
 		j.ResponseTimeMs = &l.ResponseTimeMs.Int64
+	}
+	if l.RuleSummary.Valid {
+		j.RuleSummary = &l.RuleSummary.String
 	}
 	return j
 }

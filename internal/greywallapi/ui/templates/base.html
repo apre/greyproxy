@@ -51,6 +51,8 @@
         }
     </script>
 
+    {{block "head" .}}{{end}}
+
     <style>
         @font-face { font-family: 'Inter'; src: url('{{.Prefix}}/static/fonts/inter-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
         @font-face { font-family: 'Inter'; src: url('{{.Prefix}}/static/fonts/inter-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
@@ -109,6 +111,10 @@
     <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
 
     <script>
+        function formatNumber(n) {
+            return Number(n).toLocaleString();
+        }
+
         function showToast(message, type) {
             type = type || 'success';
             var toast = document.createElement('div');

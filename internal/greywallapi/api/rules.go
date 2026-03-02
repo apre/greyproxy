@@ -85,6 +85,24 @@ func RulesUpdateHandler(s *Shared) gin.HandlerFunc {
 	}
 }
 
+func RulesIngestHandler(s *Shared) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input []greywallapi.IngestRuleInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		result, err := greywallapi.IngestRules(s.DB, input)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
+	}
+}
+
 func RulesDeleteHandler(s *Shared) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := strconv.ParseInt(c.Param("id"), 10, 64)

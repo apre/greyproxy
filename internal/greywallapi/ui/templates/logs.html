@@ -4,6 +4,10 @@
         <h1 class="text-3xl font-bold text-foreground">Request Logs</h1>
         <button hx-get="{{.Prefix}}/htmx/logs-table" hx-target="#logs-table" hx-swap="innerHTML"
             class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90">
+            <svg class="htmx-indicator -ml-1 mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
             Refresh
         </button>
     </div>
@@ -13,6 +17,7 @@
             hx-get="{{.Prefix}}/htmx/logs-table" hx-target="#logs-table" hx-swap="innerHTML"
             hx-trigger="submit, change delay:100ms, input delay:100ms"
             hx-sync="this:replace"
+            hx-indicator="#logs-filter-spinner"
             class="space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
@@ -59,11 +64,15 @@
                     <input type="datetime-local" id="to_date" name="to_date"
                         class="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-ring focus:border-ring bg-background">
                 </div>
-                <div class="flex items-end">
+                <div class="flex items-end space-x-2">
                     <button type="button" id="reset-filters-btn" onclick="resetFilters()"
                         class="hidden w-full inline-flex justify-center items-center px-4 py-2 border border-border text-sm font-medium rounded-md text-secondary-foreground bg-background hover:bg-muted">
                         Reset
                     </button>
+                    <svg id="logs-filter-spinner" class="htmx-indicator h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
                 </div>
             </div>
         </form>

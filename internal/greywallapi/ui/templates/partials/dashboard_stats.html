@@ -3,15 +3,15 @@
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <div class="bg-card rounded-lg border border-border shadow-sm p-6">
         <div class="text-sm font-medium text-muted-foreground">Total Requests</div>
-        <div class="text-3xl font-bold text-foreground mt-2">{{$stats.TotalRequests}}</div>
+        <div class="text-3xl font-bold text-foreground mt-2">{{formatNumber $stats.TotalRequests}}</div>
     </div>
     <div class="bg-card rounded-lg border border-border shadow-sm p-6">
         <div class="text-sm font-medium text-muted-foreground">Allowed</div>
-        <div class="text-3xl font-bold text-green-600 mt-2">{{$stats.Allowed}}</div>
+        <div class="text-3xl font-bold text-green-600 mt-2">{{formatNumber $stats.Allowed}}</div>
     </div>
     <div class="bg-card rounded-lg border border-border shadow-sm p-6">
         <div class="text-sm font-medium text-muted-foreground">Blocked</div>
-        <div class="text-3xl font-bold text-red-600 mt-2">{{$stats.Blocked}}</div>
+        <div class="text-3xl font-bold text-red-600 mt-2">{{formatNumber $stats.Blocked}}</div>
     </div>
     <div class="bg-card rounded-lg border border-border shadow-sm p-6">
         <div class="text-sm font-medium text-muted-foreground">Allow Rate</div>
@@ -119,7 +119,7 @@
                             {{if eq .Result "allowed"}}<span class="text-green-600 text-lg">✓</span>
                             {{else}}<span class="text-red-600 text-lg">✗</span>{{end}}
                         </div>
-                        <div class="text-sm text-muted-foreground w-24">{{.Timestamp}}</div>
+                        <div class="text-sm text-muted-foreground w-24">{{formatTimeOnly .Timestamp}}</div>
                         <div class="text-sm font-medium text-foreground min-w-0 flex-1">{{.ContainerName}}</div>
                         <div class="text-sm text-foreground">
                             {{if hasValue .ResolvedHostname}}→ {{derefStr .ResolvedHostname}}:{{derefInt .DestinationPort}}

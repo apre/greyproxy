@@ -17,14 +17,44 @@ var upgrader = websocket.Upgrader{
 }
 
 type wsClient struct {
-	conn *websocket.Conn
-	mu   sync.Mutex
+	conn          *websocket.Conn
+	mu            sync.Mutex
+	subscriptions map[string]bool // nil means "subscribe to all"
+	subMu         sync.RWMutex
 }
 
 func (c *wsClient) send(msg any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.conn.WriteJSON(msg)
+}
+
+// shouldReceive checks if the client is subscribed to the given event type.
+// If no subscriptions are set (nil map), all events are forwarded.
+func (c *wsClient) shouldReceive(eventType string) bool {
+	c.subMu.RLock()
+	defer c.subMu.RUnlock()
+	if c.subscriptions == nil {
+		return true // No filter — receive everything
+	}
+	return c.subscriptions[eventType]
+}
+
+func (c *wsClient) subscribe(eventType string) {
+	c.subMu.Lock()
+	defer c.subMu.Unlock()
+	if c.subscriptions == nil {
+		c.subscriptions = make(map[string]bool)
+	}
+	c.subscriptions[eventType] = true
+}
+
+func (c *wsClient) unsubscribe(eventType string) {
+	c.subMu.Lock()
+	defer c.subMu.Unlock()
+	if c.subscriptions != nil {
+		delete(c.subscriptions, eventType)
+	}
 }
 
 func WebSocketHandler(s *Shared) gin.HandlerFunc {
@@ -58,16 +88,18 @@ func WebSocketHandler(s *Shared) gin.HandlerFunc {
 			handleClientCommands(client, s, log)
 		}()
 
-		// Forward events to client
+		// Forward events to client (filtered by subscriptions)
 		for {
 			select {
 			case evt, ok := <-ch:
 				if !ok {
 					return
 				}
-				if err := client.send(evt); err != nil {
-					log.Debugf("ws send error: %v", err)
-					return
+				if client.shouldReceive(evt.Type) {
+					if err := client.send(evt); err != nil {
+						log.Debugf("ws send error: %v", err)
+						return
+					}
 				}
 			case <-done:
 				return
@@ -82,6 +114,7 @@ type wsCommand struct {
 	Scope     string `json:"scope"`
 	Duration  string `json:"duration"`
 	Notes     string `json:"notes"`
+	EventType string `json:"event_type"` // For subscribe/unsubscribe
 }
 
 func handleClientCommands(client *wsClient, s *Shared, log logger.Logger) {
@@ -169,6 +202,38 @@ func handleClientCommands(client *wsClient, s *Shared, log logger.Logger) {
 				"type":       "command_success",
 				"command":    "dismiss",
 				"pending_id": cmd.PendingID,
+				"timestamp":  time.Now().UTC().Format(time.RFC3339),
+			})
+
+		case "subscribe":
+			if cmd.EventType == "" {
+				client.send(gin.H{
+					"type":      "error",
+					"error":     "event_type is required for subscribe",
+					"timestamp": time.Now().UTC().Format(time.RFC3339),
+				})
+				continue
+			}
+			client.subscribe(cmd.EventType)
+			client.send(gin.H{
+				"type":       "subscribed",
+				"event_type": cmd.EventType,
+				"timestamp":  time.Now().UTC().Format(time.RFC3339),
+			})
+
+		case "unsubscribe":
+			if cmd.EventType == "" {
+				client.send(gin.H{
+					"type":      "error",
+					"error":     "event_type is required for unsubscribe",
+					"timestamp": time.Now().UTC().Format(time.RFC3339),
+				})
+				continue
+			}
+			client.unsubscribe(cmd.EventType)
+			client.send(gin.H{
+				"type":       "unsubscribed",
+				"event_type": cmd.EventType,
 				"timestamp":  time.Now().UTC().Format(time.RFC3339),
 			})
 

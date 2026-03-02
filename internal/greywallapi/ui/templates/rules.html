@@ -16,6 +16,7 @@
             hx-get="{{.Prefix}}/htmx/rules-list" hx-target="#rules-list" hx-swap="innerHTML"
             hx-trigger="submit, change delay:100ms, input delay:100ms"
             hx-sync="this:replace"
+            hx-indicator="#rules-filter-spinner"
             class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
                 <label for="container" class="block text-sm font-medium text-foreground mb-1">Source</label>
@@ -35,9 +36,13 @@
                     class="h-4 w-4 text-primary focus:ring-ring border-border rounded">
                 <label for="include_expired" class="ml-2 block text-sm text-foreground">Show expired</label>
             </div>
-            <div class="flex items-end">
+            <div class="flex items-end space-x-2">
                 <button type="button" id="clear-filters-btn" onclick="clearRulesFilters()"
                     class="hidden w-full inline-flex justify-center items-center px-4 py-2 border border-border text-sm font-medium rounded-md text-secondary-foreground bg-background hover:bg-muted">Clear</button>
+                <svg id="rules-filter-spinner" class="htmx-indicator h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
             </div>
         </form>
     </div>

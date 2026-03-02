@@ -37,17 +37,17 @@
                     <div id="expanded-{{.ID}}" class="hidden mt-4 p-4 bg-secondary rounded-md border border-border">
                         <h4 class="text-sm font-medium text-foreground mb-3">Allow — broader patterns (permanent):</h4>
                         <div class="space-y-2 mb-4">
-                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "any_port", "duration": "permanent"}'
+                            <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "any_port", "duration": "permanent"}'
                                 hx-target="#pending-list" hx-swap="innerHTML"
                                 class="w-full text-left px-3 py-2 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">
                                 [Any port] {{.ContainerName}} → {{.DisplayHost}}:*
                             </button>
-                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "subdomain_wildcard", "duration": "permanent"}'
+                            <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "subdomain_wildcard", "duration": "permanent"}'
                                 hx-target="#pending-list" hx-swap="innerHTML"
                                 class="w-full text-left px-3 py-2 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">
-                                [All subdomains] {{.ContainerName}} → **.{{baseDomain .DisplayHost}}:*
+                                [All subdomains] {{.ContainerName}} → *.{{baseDomain .DisplayHost}}:*
                             </button>
-                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "all_containers", "duration": "permanent"}'
+                            <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "all_containers", "duration": "permanent"}'
                                 hx-target="#pending-list" hx-swap="innerHTML"
                                 class="w-full text-left px-3 py-2 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">
                                 [All containers] * → {{.DisplayHost}}:{{.DestinationPort}}
@@ -56,30 +56,30 @@
 
                         <h4 class="text-sm font-medium text-foreground mb-3">Allow — temporary (24h):</h4>
                         <div class="flex flex-wrap gap-2 mb-4">
-                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "exact", "duration": "24h"}'
+                            <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "exact", "duration": "24h"}'
                                 hx-target="#pending-list" hx-swap="innerHTML"
                                 class="px-3 py-1 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">Exact 24h</button>
-                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "any_port", "duration": "24h"}'
+                            <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "any_port", "duration": "24h"}'
                                 hx-target="#pending-list" hx-swap="innerHTML"
                                 class="px-3 py-1 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">Any port 24h</button>
-                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "subdomain_wildcard", "duration": "24h"}'
+                            <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "subdomain_wildcard", "duration": "24h"}'
                                 hx-target="#pending-list" hx-swap="innerHTML"
                                 class="px-3 py-1 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">Subdomains 24h</button>
                         </div>
 
                         <h4 class="text-sm font-medium text-destructive mb-3">Deny — block this destination:</h4>
                         <div class="space-y-2">
-                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "exact", "duration": "permanent"}'
+                            <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "exact", "duration": "permanent"}'
                                 hx-target="#pending-list" hx-swap="innerHTML"
                                 class="w-full text-left px-3 py-2 text-sm bg-destructive/5 hover:bg-destructive/10 text-destructive rounded border border-destructive/20 transition-colors">
                                 [Exact] Deny {{.ContainerName}} → {{.DisplayHost}}:{{.DestinationPort}}
                             </button>
-                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "subdomain_wildcard", "duration": "permanent"}'
+                            <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "subdomain_wildcard", "duration": "permanent"}'
                                 hx-target="#pending-list" hx-swap="innerHTML"
                                 class="w-full text-left px-3 py-2 text-sm bg-destructive/5 hover:bg-destructive/10 text-destructive rounded border border-destructive/20 transition-colors">
-                                [All subdomains] Deny {{.ContainerName}} → **.{{baseDomain .DisplayHost}}:*
+                                [All subdomains] Deny {{.ContainerName}} → *.{{baseDomain .DisplayHost}}:*
                             </button>
-                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "all_containers", "duration": "permanent"}'
+                            <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "all_containers", "duration": "permanent"}'
                                 hx-target="#pending-list" hx-swap="innerHTML"
                                 class="w-full text-left px-3 py-2 text-sm bg-destructive/5 hover:bg-destructive/10 text-destructive rounded border border-destructive/20 transition-colors">
                                 [All containers] Deny * → {{.DisplayHost}}:{{.DestinationPort}}
@@ -89,21 +89,24 @@
                 </div>
 
                 <div class="flex flex-shrink-0 items-center flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-3">
-                    <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "exact", "duration": "permanent"}'
+                    <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "exact", "duration": "permanent"}'
                         hx-target="#pending-list" hx-swap="innerHTML"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded text-primary-foreground bg-primary hover:bg-primary/90">
                         ✓ Allow
                     </button>
-                    <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "exact", "duration": "permanent"}'
+                    <button hx-post="{{$.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "exact", "duration": "permanent"}'
                         hx-target="#pending-list" hx-swap="innerHTML"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border text-xs font-medium rounded text-foreground bg-transparent hover:bg-muted">
                         ✗ Deny
                     </button>
                     <button onclick="toggleExpanded('{{.ID}}')"
                         class="btn-plain inline-flex items-center gap-1 px-1 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-                        <span id="more-text-{{.ID}}">More</span> ▾
+                        <span id="more-text-{{.ID}}">More</span>
+                        <svg id="chevron-{{.ID}}" class="h-3.5 w-3.5 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
                     </button>
-                    <button hx-delete="{{.Prefix}}/htmx/pending/{{.ID}}" hx-target="#pending-list" hx-swap="innerHTML"
+                    <button hx-delete="{{$.Prefix}}/htmx/pending/{{.ID}}" hx-target="#pending-list" hx-swap="innerHTML"
                         class="btn-plain inline-flex items-center px-1 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                         Dismiss
                     </button>
@@ -118,12 +121,15 @@
     function toggleExpanded(itemId) {
         var expanded = document.getElementById('expanded-' + itemId);
         var moreText = document.getElementById('more-text-' + itemId);
+        var chevron = document.getElementById('chevron-' + itemId);
         if (expanded.classList.contains('hidden')) {
             expanded.classList.remove('hidden');
             moreText.textContent = 'Less';
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
         } else {
             expanded.classList.add('hidden');
             moreText.textContent = 'More';
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
         }
     }
 </script>
@@ -132,7 +138,13 @@
     <svg class="mx-auto h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
+    {{if $.HasFilters}}
+    <h3 class="mt-2 text-sm font-medium text-foreground">No pending requests match your current filters</h3>
+    <p class="mt-1 text-sm text-muted-foreground">Try adjusting your filters or clear them to see all pending requests.</p>
+    <button onclick="clearPendingFilters()" class="mt-3 inline-flex items-center px-4 py-2 border border-border text-sm font-medium rounded-md text-secondary-foreground bg-background hover:bg-muted">Clear filters</button>
+    {{else}}
     <h3 class="mt-2 text-sm font-medium text-foreground">No pending requests</h3>
     <p class="mt-1 text-sm text-muted-foreground">All blocked requests have been reviewed.</p>
+    {{end}}
 </div>
 {{end}}

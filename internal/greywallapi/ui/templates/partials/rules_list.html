@@ -1,6 +1,9 @@
 {{$items := .Items}}
 {{$total := .Total}}
 {{if $items}}
+{{if gt $total (len $items)}}
+<div class="mb-2 text-sm text-muted-foreground">Showing {{len $items}} of {{$total}} rules</div>
+{{end}}
 <!-- Desktop table -->
 <div class="hidden xl:block bg-card rounded-lg shadow-sm border border-border overflow-hidden">
     <table class="min-w-full divide-y divide-border">
@@ -41,7 +44,7 @@
                     <span class="cursor-pointer hover:underline hover:text-primary" onclick="filterByDestination('{{.DestinationPattern}}')">{{.DestinationPattern}}</span><span class="text-muted-foreground">:{{.PortPattern}}</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    <button hx-delete="{{.Prefix}}/htmx/rules/{{.ID}}" hx-swap="none" hx-on::after-request="triggerRulesReload()"
+                    <button hx-delete="{{$.Prefix}}/htmx/rules/{{.ID}}" hx-swap="none" hx-on::after-request="triggerRulesReload()"
                         class="inline-flex items-center px-3 py-1.5 border border-border rounded shadow-sm text-xs font-medium text-foreground bg-background hover:bg-muted">Delete</button>
                     <button onclick="editRule({{.ID}}, '{{.ContainerPattern}}', '{{.DestinationPattern}}', '{{.PortPattern}}', '{{.RuleType}}', '{{.Action}}', '{{if .Notes.Valid}}{{.Notes.String}}{{end}}')"
                         class="inline-flex items-center px-3 py-1.5 border border-transparent rounded shadow-sm text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90">Edit</button>
@@ -88,7 +91,7 @@
             <div class="flex flex-col items-end flex-shrink-0 ml-3">
                 <span class="text-xs text-muted-foreground">{{formatDate .CreatedAt}}</span>
                 <div class="flex space-x-2 mt-1">
-                    <button hx-delete="{{.Prefix}}/htmx/rules/{{.ID}}" hx-swap="none" hx-on::after-request="triggerRulesReload()"
+                    <button hx-delete="{{$.Prefix}}/htmx/rules/{{.ID}}" hx-swap="none" hx-on::after-request="triggerRulesReload()"
                         class="inline-flex items-center px-3 py-1.5 border border-border rounded shadow-sm text-xs font-medium text-foreground bg-background hover:bg-muted">Delete</button>
                     <button onclick="editRule({{.ID}}, '{{.ContainerPattern}}', '{{.DestinationPattern}}', '{{.PortPattern}}', '{{.RuleType}}', '{{.Action}}', '{{if .Notes.Valid}}{{.Notes.String}}{{end}}')"
                         class="inline-flex items-center px-3 py-1.5 border border-transparent rounded shadow-sm text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90">Edit</button>
@@ -135,7 +138,13 @@
     <svg class="mx-auto h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
+    {{if $.HasFilters}}
+    <h3 class="mt-2 text-sm font-medium text-foreground">No rules match your current filters</h3>
+    <p class="mt-1 text-sm text-muted-foreground">Try adjusting your filters or clear them to see all rules.</p>
+    <button onclick="clearRulesFilters()" class="mt-3 inline-flex items-center px-4 py-2 border border-border text-sm font-medium rounded-md text-secondary-foreground bg-background hover:bg-muted">Clear filters</button>
+    {{else}}
     <h3 class="mt-2 text-sm font-medium text-foreground">No rules</h3>
     <p class="mt-1 text-sm text-muted-foreground">Create a rule to allow traffic.</p>
+    {{end}}
 </div>
 {{end}}

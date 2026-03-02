@@ -43,6 +43,16 @@ var funcMap = template.FuncMap{
 	"formatHMS": func(t time.Time) string {
 		return t.Format("15:04:05")
 	},
+	"formatTimeOnly": func(s string) string {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			return t.Format("15:04:05")
+		}
+		// Fallback: try to extract time portion
+		if len(s) >= 19 {
+			return s[11:19]
+		}
+		return s
+	},
 	"formatDate": func(t time.Time) string {
 		return t.Format("2006-01-02 15:04")
 	},
@@ -62,6 +72,21 @@ var funcMap = template.FuncMap{
 	},
 	"formatFloat": func(f float64) string {
 		return fmt.Sprintf("%.1f", f)
+	},
+	"formatNumber": func(n int) string {
+		if n < 1000 {
+			return fmt.Sprintf("%d", n)
+		}
+		// Simple comma formatting
+		s := fmt.Sprintf("%d", n)
+		result := make([]byte, 0, len(s)+(len(s)-1)/3)
+		for i, c := range s {
+			if i > 0 && (len(s)-i)%3 == 0 {
+				result = append(result, ',')
+			}
+			result = append(result, byte(c))
+		}
+		return string(result)
 	},
 	"percent": func(part, total int) float64 {
 		if total == 0 {
@@ -271,9 +296,12 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
 		offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
+		container := c.Query("container")
+		destination := c.Query("destination")
+
 		items, total, err := greywallapi.GetPendingRequests(db, greywallapi.PendingFilter{
-			Container:   c.Query("container"),
-			Destination: c.Query("destination"),
+			Container:   container,
+			Destination: destination,
 			Limit:       limit,
 			Offset:      offset,
 		})
@@ -282,10 +310,14 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 			return
 		}
 
+		hasFilters := container != "" || destination != ""
+
 		c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 		pendingListTmpl.Execute(c.Writer, gin.H{
-			"Items": items,
-			"Total": total,
+			"Prefix":     prefix,
+			"Items":      items,
+			"Total":      total,
+			"HasFilters": hasFilters,
 		})
 	})
 
@@ -463,21 +495,27 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 			offset = (page - 1) * limit
 		}
 
+		container := c.Query("container")
+		destination := c.Query("destination")
+		result := c.Query("result")
+		fromDateStr := c.Query("from_date")
+		toDateStr := c.Query("to_date")
+
 		f := greywallapi.LogFilter{
-			Container:   c.Query("container"),
-			Destination: c.Query("destination"),
-			Result:      c.Query("result"),
+			Container:   container,
+			Destination: destination,
+			Result:      result,
 			Limit:       limit,
 			Offset:      offset,
 		}
 
-		if v := c.Query("from_date"); v != "" {
-			if t, err := time.Parse("2006-01-02T15:04", v); err == nil {
+		if fromDateStr != "" {
+			if t, err := time.Parse("2006-01-02T15:04", fromDateStr); err == nil {
 				f.FromDate = &t
 			}
 		}
-		if v := c.Query("to_date"); v != "" {
-			if t, err := time.Parse("2006-01-02T15:04", v); err == nil {
+		if toDateStr != "" {
+			if t, err := time.Parse("2006-01-02T15:04", toDateStr); err == nil {
 				f.ToDate = &t
 			}
 		}
@@ -497,45 +535,62 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 			pages = int(math.Ceil(float64(total) / float64(limit)))
 		}
 
+		hasFilters := container != "" || destination != "" || result != "" || fromDateStr != "" || toDateStr != ""
+
 		c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 		logsTableTmpl.Execute(c.Writer, gin.H{
-			"Prefix": prefix,
-			"Items":  items,
-			"Total":  total,
-			"Page":   page,
-			"Pages":  pages,
+			"Prefix":     prefix,
+			"Items":      items,
+			"Total":      total,
+			"Page":       page,
+			"Pages":      pages,
+			"HasFilters": hasFilters,
 		})
 	})
 }
 
 func renderPendingList(c *gin.Context, db *greywallapi.DB, prefix string) {
+	container := c.Query("container")
+	destination := c.Query("destination")
+
 	items, total, _ := greywallapi.GetPendingRequests(db, greywallapi.PendingFilter{
-		Container:   c.Query("container"),
-		Destination: c.Query("destination"),
+		Container:   container,
+		Destination: destination,
 		Limit:       100,
 	})
 
+	hasFilters := container != "" || destination != ""
+
 	c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 	pendingListTmpl.Execute(c.Writer, gin.H{
-		"Prefix": prefix,
-		"Items":  items,
-		"Total":  total,
+		"Prefix":     prefix,
+		"Items":      items,
+		"Total":      total,
+		"HasFilters": hasFilters,
 	})
 }
 
 func renderRulesList(c *gin.Context, db *greywallapi.DB, prefix string) {
+	container := c.Query("container")
+	destination := c.Query("destination")
+	action := c.Query("action")
 	includeExpired := c.Query("include_expired") == "true"
+
 	items, total, _ := greywallapi.GetRules(db, greywallapi.RuleFilter{
-		Container:      c.Query("container"),
-		Destination:    c.Query("destination"),
+		Container:      container,
+		Destination:    destination,
+		Action:         action,
 		IncludeExpired: includeExpired,
 		Limit:          100,
 	})
 
+	hasFilters := container != "" || destination != "" || action != "" || includeExpired
+
 	c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rulesListTmpl.Execute(c.Writer, gin.H{
-		"Prefix": prefix,
-		"Items":  items,
-		"Total":  total,
+		"Prefix":     prefix,
+		"Items":      items,
+		"Total":      total,
+		"HasFilters": hasFilters,
 	})
 }

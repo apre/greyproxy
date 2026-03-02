@@ -460,7 +460,7 @@ func TestAllowPendingScopes(t *testing.T) {
 	}{
 		{"exact", "example.com", "443", "myapp"},
 		{"any_port", "example.com", "*", "myapp"},
-		{"subdomain_wildcard", "**.example.com", "*", "myapp"},
+		{"subdomain_wildcard", "*.example.com", "*", "myapp"},
 		{"all_containers", "example.com", "443", "*"},
 	}
 
@@ -679,5 +679,28 @@ func TestRuleToJSON(t *testing.T) {
 	}
 	if j.Notes == nil || *j.Notes != "test note" {
 		t.Errorf("got notes %v, want 'test note'", j.Notes)
+	}
+	if !j.IsActive {
+		t.Error("expected IsActive to be true for rule with no expiration")
+	}
+
+	// Test IsActive with expired rule
+	expired := Rule{
+		ID:        2,
+		ExpiresAt: sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+	}
+	ej := expired.ToJSON()
+	if ej.IsActive {
+		t.Error("expected IsActive to be false for expired rule")
+	}
+
+	// Test IsActive with future expiration
+	future := Rule{
+		ID:        3,
+		ExpiresAt: sql.NullTime{Time: time.Now().Add(1 * time.Hour), Valid: true},
+	}
+	fj := future.ToJSON()
+	if !fj.IsActive {
+		t.Error("expected IsActive to be true for rule with future expiration")
 	}
 }

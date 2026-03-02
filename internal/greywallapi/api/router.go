@@ -54,6 +54,7 @@ func NewRouter(s *Shared, pathPrefix string) (*gin.Engine, *gin.RouterGroup) {
 
 		api.GET("/rules", RulesListHandler(s))
 		api.POST("/rules", RulesCreateHandler(s))
+		api.POST("/rules/ingest", RulesIngestHandler(s))
 		api.PUT("/rules/:id", RulesUpdateHandler(s))
 		api.DELETE("/rules/:id", RulesDeleteHandler(s))
 
