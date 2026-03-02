@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -289,7 +290,7 @@ func (p *program) buildGreywallApiService() error {
 		gaCfg.PathPrefix = "/"
 	}
 	if gaCfg.DB == "" {
-		gaCfg.DB = "./proxy.db"
+		gaCfg.DB = filepath.Join(greywallDataHome(), "greywall.db")
 	}
 	if gaCfg.Auther == "" {
 		gaCfg.Auther = "auther-0"
@@ -375,4 +376,16 @@ func buildMetricsService(cfg *config.MetricsConfig) (service.Service, error) {
 		metrics.PathOption(cfg.Path),
 		metrics.AutherOption(auther),
 	)
+}
+
+// greywallDataHome returns the directory for Greywall data files.
+// Priority: GREYWALL_DATA_HOME > XDG_DATA_HOME/greywall > current directory.
+func greywallDataHome() string {
+	if v := os.Getenv("GREYWALL_DATA_HOME"); v != "" {
+		return v
+	}
+	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
+		return filepath.Join(v, "greywall")
+	}
+	return "."
 }

@@ -4,6 +4,8 @@ import (
 	"embed"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/go-gost/core/logger"
 	"github.com/go-gost/core/service"
@@ -54,6 +56,12 @@ func NewService(cfg *GreywallApiConfig, handler http.Handler) (*Service, error) 
 	addr, err := net.ResolveTCPAddr("tcp", cfg.Addr)
 	if err != nil {
 		return nil, err
+	}
+
+	if dir := filepath.Dir(cfg.DB); dir != "." {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			return nil, err
+		}
 	}
 
 	db, err := OpenDB(cfg.DB)
