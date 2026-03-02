@@ -1,0 +1,100 @@
+{{define "content"}}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-foreground">Pending Requests</h1>
+        <button hx-get="{{.Prefix}}/htmx/pending-list" hx-target="#pending-list" hx-swap="innerHTML"
+            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring">
+            Refresh
+        </button>
+    </div>
+
+    <div class="bg-card rounded-lg shadow-sm border border-border p-4 relative">
+        <form id="pending-filter-form"
+            hx-get="{{.Prefix}}/htmx/pending-list" hx-target="#pending-list" hx-swap="innerHTML"
+            hx-trigger="submit, change delay:100ms, input delay:100ms"
+            hx-sync="this:replace"
+            class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label for="container" class="block text-sm font-medium text-foreground mb-1">Source</label>
+                <select id="container" name="container"
+                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-border focus:outline-none focus:ring-ring focus:border-ring rounded-md bg-background">
+                    <option value="">All</option>
+                    {{range .Containers}}<option value="{{.}}">{{.}}</option>{{end}}
+                </select>
+            </div>
+            <div>
+                <label for="destination" class="block text-sm font-medium text-foreground mb-1">Destination contains</label>
+                <input type="text" id="destination" name="destination" placeholder="e.g., openai.com"
+                    class="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-ring focus:border-ring bg-background">
+            </div>
+            <div class="flex items-end">
+                <button type="button" id="pending-clear-btn" onclick="clearPendingFilters()"
+                    class="hidden w-full inline-flex justify-center items-center px-4 py-2 border border-border text-sm font-medium rounded-md text-secondary-foreground bg-background hover:bg-muted">
+                    Clear
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div id="bulk-actions" class="bg-secondary rounded-lg shadow-sm border border-border p-4 hidden">
+        <div class="flex justify-between items-center">
+            <span class="text-sm font-medium text-secondary-foreground"><span id="selected-count">0</span> selected</span>
+            <div class="space-x-2">
+                <button hx-post="{{.Prefix}}/htmx/pending/bulk-allow" hx-include="[name='selected']:checked" hx-target="#pending-list" hx-swap="innerHTML"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90">Allow Selected</button>
+                <button hx-delete="{{.Prefix}}/htmx/pending/bulk-dismiss" hx-include="[name='selected']:checked" hx-target="#pending-list" hx-swap="innerHTML"
+                    class="inline-flex items-center px-4 py-2 border border-border text-sm font-medium rounded-md text-secondary-foreground bg-background hover:bg-muted">Dismiss Selected</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pending-list"
+         hx-get="{{.Prefix}}/htmx/pending-list" hx-include="#pending-filter-form"
+         hx-trigger="load, pending-refresh from:body" hx-swap="innerHTML">
+        <div class="flex justify-center py-8">
+            <div class="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function clearPendingFilters() {
+        document.getElementById('container').value = '';
+        document.getElementById('destination').value = '';
+        updatePendingClearButton();
+        document.getElementById('pending-filter-form').dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    function updatePendingClearButton() {
+        var hasFilters = document.getElementById('container').value !== '' || document.getElementById('destination').value !== '';
+        document.getElementById('pending-clear-btn').classList.toggle('hidden', !hasFilters);
+    }
+    document.getElementById('pending-filter-form').addEventListener('change', updatePendingClearButton);
+    document.getElementById('pending-filter-form').addEventListener('input', updatePendingClearButton);
+
+    function updateBulkActions() {
+        var checkboxes = document.querySelectorAll('[name="selected"]:checked');
+        var count = checkboxes.length;
+        document.getElementById('selected-count').textContent = count;
+        document.getElementById('bulk-actions').classList.toggle('hidden', count === 0);
+    }
+    document.addEventListener('change', function(e) {
+        if (e.target.name === 'selected' || e.target.id === 'select-all') { updateBulkActions(); }
+    });
+    document.addEventListener('change', function(e) {
+        if (e.target.id === 'select-all') {
+            document.querySelectorAll('[name="selected"]').forEach(function(cb) { cb.checked = e.target.checked; });
+            updateBulkActions();
+        }
+    });
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+        if (e.detail.target && e.detail.target.id === 'pending-list') { updateBulkActions(); }
+    });
+    var pendingRefreshTimer = null;
+    window.addEventListener('proxy:pending-event', function(e) {
+        clearTimeout(pendingRefreshTimer);
+        pendingRefreshTimer = setTimeout(function() {
+            document.body.dispatchEvent(new CustomEvent('pending-refresh'));
+        }, 500);
+    });
+</script>
+{{end}}

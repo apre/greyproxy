@@ -1,0 +1,117 @@
+{{define "content"}}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-foreground">Request Logs</h1>
+        <button hx-get="{{.Prefix}}/htmx/logs-table" hx-target="#logs-table" hx-swap="innerHTML"
+            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90">
+            Refresh
+        </button>
+    </div>
+
+    <div class="bg-card rounded-lg shadow-sm border border-border p-4 relative">
+        <form id="logs-filter-form"
+            hx-get="{{.Prefix}}/htmx/logs-table" hx-target="#logs-table" hx-swap="innerHTML"
+            hx-trigger="submit, change delay:100ms, input delay:100ms"
+            hx-sync="this:replace"
+            class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label for="container" class="block text-sm font-medium text-foreground mb-1">Source</label>
+                    <select id="container" name="container"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-border focus:outline-none focus:ring-ring focus:border-ring rounded-md bg-background">
+                        <option value="">All</option>
+                        {{range .Containers}}<option value="{{.}}">{{.}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <label for="result" class="block text-sm font-medium text-foreground mb-1">Result</label>
+                    <select id="result" name="result"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-border focus:outline-none focus:ring-ring focus:border-ring rounded-md bg-background">
+                        <option value="">All</option>
+                        <option value="allowed">Allowed</option>
+                        <option value="blocked">Blocked</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="destination" class="block text-sm font-medium text-foreground mb-1">Destination</label>
+                    <input type="text" id="destination" name="destination" placeholder="e.g., openai.com"
+                        class="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-ring focus:border-ring bg-background">
+                </div>
+                <div>
+                    <label for="limit" class="block text-sm font-medium text-foreground mb-1">Limit</label>
+                    <select id="limit" name="limit"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-border focus:outline-none focus:ring-ring focus:border-ring rounded-md bg-background">
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="from_date" class="block text-sm font-medium text-foreground mb-1">From</label>
+                    <input type="datetime-local" id="from_date" name="from_date"
+                        class="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-ring focus:border-ring bg-background">
+                </div>
+                <div>
+                    <label for="to_date" class="block text-sm font-medium text-foreground mb-1">To</label>
+                    <input type="datetime-local" id="to_date" name="to_date"
+                        class="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-ring focus:border-ring bg-background">
+                </div>
+                <div class="flex items-end">
+                    <button type="button" id="reset-filters-btn" onclick="resetFilters()"
+                        class="hidden w-full inline-flex justify-center items-center px-4 py-2 border border-border text-sm font-medium rounded-md text-secondary-foreground bg-background hover:bg-muted">
+                        Reset
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div id="logs-table"
+         hx-get="{{.Prefix}}/htmx/logs-table" hx-include="#logs-filter-form"
+         hx-trigger="load" hx-swap="innerHTML">
+        <div class="flex justify-center py-8">
+            <div class="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function resetFilters() {
+        document.getElementById('container').value = '';
+        document.getElementById('result').value = '';
+        document.getElementById('destination').value = '';
+        document.getElementById('from_date').value = '';
+        document.getElementById('to_date').value = '';
+        document.getElementById('limit').value = '50';
+        updateLogsResetButton();
+        document.getElementById('logs-filter-form').dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    function updateLogsResetButton() {
+        var hasFilters = document.getElementById('container').value !== '' ||
+                         document.getElementById('result').value !== '' ||
+                         document.getElementById('destination').value !== '' ||
+                         document.getElementById('from_date').value !== '' ||
+                         document.getElementById('to_date').value !== '' ||
+                         document.getElementById('limit').value !== '50';
+        document.getElementById('reset-filters-btn').classList.toggle('hidden', !hasFilters);
+    }
+    document.getElementById('logs-filter-form').addEventListener('change', updateLogsResetButton);
+    document.getElementById('logs-filter-form').addEventListener('input', updateLogsResetButton);
+    updateLogsResetButton();
+
+    function toggleLogDetails(logId) {
+        var details = document.getElementById('log-details-' + logId);
+        var icon = document.getElementById('log-icon-' + logId);
+        if (details.classList.contains('hidden')) {
+            details.classList.remove('hidden');
+            icon.style.transform = 'rotate(90deg)';
+        } else {
+            details.classList.add('hidden');
+            icon.style.transform = 'rotate(0deg)';
+        }
+    }
+</script>
+{{end}}

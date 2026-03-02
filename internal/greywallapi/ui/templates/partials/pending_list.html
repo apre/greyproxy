@@ -1,0 +1,138 @@
+{{$items := .Items}}
+{{$total := .Total}}
+{{if $items}}
+<div class="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
+    <div class="px-4 py-3 bg-secondary border-b border-border flex items-center">
+        <input type="checkbox" id="select-all" class="h-4 w-4 text-primary focus:ring-ring border-border rounded">
+        <label for="select-all" class="ml-2 text-sm font-medium text-secondary-foreground">Select all ({{$total}})</label>
+    </div>
+
+    <div class="divide-y divide-border">
+        {{range $items}}
+        <div class="p-4 hover:bg-muted transition-colors">
+            <div class="flex items-start space-x-4">
+                <div class="pt-1">
+                    <input type="checkbox" name="selected" value="{{.ID}}" class="h-4 w-4 text-primary focus:ring-ring border-border rounded">
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-start justify-between">
+                        <h3 class="text-base font-medium text-foreground">
+                            <span class="break-all">{{.ContainerName}}</span>
+                            <span class="text-muted-foreground mx-1">→</span>
+                            {{if .ResolvedHostname.Valid}}
+                            <span class="break-all">{{.ResolvedHostname.String}}:{{.DestinationPort}}</span>
+                            <span class="text-xs text-muted-foreground ml-1">({{.DestinationHost}})</span>
+                            {{else}}
+                            <span class="break-all">{{.DestinationHost}}:{{.DestinationPort}}</span>
+                            {{end}}
+                        </h3>
+                    </div>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        {{.AttemptCount}} attempt{{if ne .AttemptCount 1}}s{{end}} ·
+                        First: {{formatTime .FirstSeen}} ·
+                        Last: {{formatTime .LastSeen}}
+                    </p>
+
+                    <!-- Expanded options -->
+                    <div id="expanded-{{.ID}}" class="hidden mt-4 p-4 bg-secondary rounded-md border border-border">
+                        <h4 class="text-sm font-medium text-foreground mb-3">Allow — broader patterns (permanent):</h4>
+                        <div class="space-y-2 mb-4">
+                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "any_port", "duration": "permanent"}'
+                                hx-target="#pending-list" hx-swap="innerHTML"
+                                class="w-full text-left px-3 py-2 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">
+                                [Any port] {{.ContainerName}} → {{.DisplayHost}}:*
+                            </button>
+                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "subdomain_wildcard", "duration": "permanent"}'
+                                hx-target="#pending-list" hx-swap="innerHTML"
+                                class="w-full text-left px-3 py-2 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">
+                                [All subdomains] {{.ContainerName}} → **.{{baseDomain .DisplayHost}}:*
+                            </button>
+                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "all_containers", "duration": "permanent"}'
+                                hx-target="#pending-list" hx-swap="innerHTML"
+                                class="w-full text-left px-3 py-2 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">
+                                [All containers] * → {{.DisplayHost}}:{{.DestinationPort}}
+                            </button>
+                        </div>
+
+                        <h4 class="text-sm font-medium text-foreground mb-3">Allow — temporary (24h):</h4>
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "exact", "duration": "24h"}'
+                                hx-target="#pending-list" hx-swap="innerHTML"
+                                class="px-3 py-1 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">Exact 24h</button>
+                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "any_port", "duration": "24h"}'
+                                hx-target="#pending-list" hx-swap="innerHTML"
+                                class="px-3 py-1 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">Any port 24h</button>
+                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "subdomain_wildcard", "duration": "24h"}'
+                                hx-target="#pending-list" hx-swap="innerHTML"
+                                class="px-3 py-1 text-sm bg-background hover:bg-muted rounded border border-border transition-colors">Subdomains 24h</button>
+                        </div>
+
+                        <h4 class="text-sm font-medium text-destructive mb-3">Deny — block this destination:</h4>
+                        <div class="space-y-2">
+                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "exact", "duration": "permanent"}'
+                                hx-target="#pending-list" hx-swap="innerHTML"
+                                class="w-full text-left px-3 py-2 text-sm bg-destructive/5 hover:bg-destructive/10 text-destructive rounded border border-destructive/20 transition-colors">
+                                [Exact] Deny {{.ContainerName}} → {{.DisplayHost}}:{{.DestinationPort}}
+                            </button>
+                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "subdomain_wildcard", "duration": "permanent"}'
+                                hx-target="#pending-list" hx-swap="innerHTML"
+                                class="w-full text-left px-3 py-2 text-sm bg-destructive/5 hover:bg-destructive/10 text-destructive rounded border border-destructive/20 transition-colors">
+                                [All subdomains] Deny {{.ContainerName}} → **.{{baseDomain .DisplayHost}}:*
+                            </button>
+                            <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "all_containers", "duration": "permanent"}'
+                                hx-target="#pending-list" hx-swap="innerHTML"
+                                class="w-full text-left px-3 py-2 text-sm bg-destructive/5 hover:bg-destructive/10 text-destructive rounded border border-destructive/20 transition-colors">
+                                [All containers] Deny * → {{.DisplayHost}}:{{.DestinationPort}}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-shrink-0 items-center flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-3">
+                    <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/allow" hx-vals='{"scope": "exact", "duration": "permanent"}'
+                        hx-target="#pending-list" hx-swap="innerHTML"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded text-primary-foreground bg-primary hover:bg-primary/90">
+                        ✓ Allow
+                    </button>
+                    <button hx-post="{{.Prefix}}/htmx/pending/{{.ID}}/deny" hx-vals='{"scope": "exact", "duration": "permanent"}'
+                        hx-target="#pending-list" hx-swap="innerHTML"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border text-xs font-medium rounded text-foreground bg-transparent hover:bg-muted">
+                        ✗ Deny
+                    </button>
+                    <button onclick="toggleExpanded('{{.ID}}')"
+                        class="btn-plain inline-flex items-center gap-1 px-1 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                        <span id="more-text-{{.ID}}">More</span> ▾
+                    </button>
+                    <button hx-delete="{{.Prefix}}/htmx/pending/{{.ID}}" hx-target="#pending-list" hx-swap="innerHTML"
+                        class="btn-plain inline-flex items-center px-1 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        </div>
+        {{end}}
+    </div>
+</div>
+
+<script>
+    function toggleExpanded(itemId) {
+        var expanded = document.getElementById('expanded-' + itemId);
+        var moreText = document.getElementById('more-text-' + itemId);
+        if (expanded.classList.contains('hidden')) {
+            expanded.classList.remove('hidden');
+            moreText.textContent = 'Less';
+        } else {
+            expanded.classList.add('hidden');
+            moreText.textContent = 'More';
+        }
+    }
+</script>
+{{else}}
+<div class="bg-card rounded-lg shadow-sm border border-border p-8 text-center">
+    <svg class="mx-auto h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <h3 class="mt-2 text-sm font-medium text-foreground">No pending requests</h3>
+    <p class="mt-1 text-sm text-muted-foreground">All blocked requests have been reviewed.</p>
+</div>
+{{end}}

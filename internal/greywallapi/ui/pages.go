@@ -1,0 +1,541 @@
+package ui
+
+import (
+	"embed"
+	"fmt"
+	"html/template"
+	"math"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	greywallapi "github.com/go-gost/gost/internal/greywallapi"
+)
+
+//go:embed templates/*
+var templatesFS embed.FS
+
+// Note: Static files are served from the greywallapi package, not embedded here.
+// The router in api/router.go will set up static file serving.
+
+var funcMap = template.FuncMap{
+	"timeAgo": func(t time.Time) string {
+		d := time.Since(t)
+		switch {
+		case d < time.Minute:
+			return "just now"
+		case d < time.Hour:
+			return fmt.Sprintf("%dm ago", int(d.Minutes()))
+		case d < 24*time.Hour:
+			return fmt.Sprintf("%dh ago", int(d.Hours()))
+		default:
+			return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+		}
+	},
+	"formatTime": func(t time.Time) string {
+		return t.Format("2006-01-02 15:04:05")
+	},
+	"formatTimeShort": func(t time.Time) string {
+		return t.Format("01-02 15:04")
+	},
+	"formatHMS": func(t time.Time) string {
+		return t.Format("15:04:05")
+	},
+	"formatDate": func(t time.Time) string {
+		return t.Format("2006-01-02 15:04")
+	},
+	"contains": strings.Contains,
+	"join":     strings.Join,
+	"add": func(a, b int) int {
+		return a + b
+	},
+	"sub": func(a, b int) int {
+		return a - b
+	},
+	"gt": func(a, b int) bool {
+		return a > b
+	},
+	"lt": func(a, b int) bool {
+		return a < b
+	},
+	"formatFloat": func(f float64) string {
+		return fmt.Sprintf("%.1f", f)
+	},
+	"percent": func(part, total int) float64 {
+		if total == 0 {
+			return 0
+		}
+		return float64(part) / float64(total) * 100
+	},
+	"baseDomain": func(host string) string {
+		parts := strings.Split(host, ".")
+		if len(parts) >= 2 {
+			return strings.Join(parts[len(parts)-2:], ".")
+		}
+		return host
+	},
+	"pluralize": func(count int, singular, plural string) string {
+		if count == 1 {
+			return singular
+		}
+		return plural
+	},
+	"truncate": func(s string, n int) string {
+		if len(s) <= n {
+			return s
+		}
+		return s[:n]
+	},
+	"expiresIn": func(t time.Time) string {
+		d := time.Until(t)
+		if d <= 0 {
+			return "Expired"
+		}
+		hours := int(d.Hours())
+		if hours > 0 {
+			return fmt.Sprintf("Expires in %dh", hours)
+		}
+		mins := int(d.Minutes())
+		return fmt.Sprintf("Expires in %dm", mins)
+	},
+	"isExpired": func(t time.Time) bool {
+		return time.Now().After(t)
+	},
+	"derefStr": func(s *string) string {
+		if s == nil {
+			return ""
+		}
+		return *s
+	},
+	"derefInt": func(i *int64) int64 {
+		if i == nil {
+			return 0
+		}
+		return *i
+	},
+	"hasValue": func(s *string) bool {
+		return s != nil && *s != ""
+	},
+	"hasIntValue": func(i *int64) bool {
+		return i != nil
+	},
+	"seq": func(start, end int) []int {
+		var result []int
+		for i := start; i <= end; i++ {
+			result = append(result, i)
+		}
+		return result
+	},
+}
+
+func parseTemplate(name string, files ...string) *template.Template {
+	paths := make([]string, len(files))
+	for i, f := range files {
+		paths[i] = "templates/" + f
+	}
+	t, err := template.New(name).Funcs(funcMap).ParseFS(templatesFS, paths...)
+	if err != nil {
+		panic(fmt.Sprintf("parse template %s: %v", name, err))
+	}
+	return t
+}
+
+var (
+	dashboardTmpl = parseTemplate("base.html", "base.html", "dashboard.html")
+	pendingTmpl   = parseTemplate("base.html", "base.html", "pending.html")
+	rulesTmpl     = parseTemplate("base.html", "base.html", "rules.html")
+	logsTmpl      = parseTemplate("base.html", "base.html", "logs.html")
+
+	dashboardStatsTmpl = parseTemplate("dashboard_stats.html", "partials/dashboard_stats.html")
+	pendingListTmpl    = parseTemplate("pending_list.html", "partials/pending_list.html")
+	rulesListTmpl      = parseTemplate("rules_list.html", "partials/rules_list.html")
+	logsTableTmpl      = parseTemplate("logs_table.html", "partials/logs_table.html")
+)
+
+type PageData struct {
+	CurrentPath string
+	Prefix      string // URL path prefix (e.g., "" for root, "/proxy" for sub-path)
+	Title       string
+	Containers  []string
+	Data        any
+}
+
+func getContainers(db *greywallapi.DB) []string {
+	rows, err := db.ReadDB().Query(
+		`SELECT DISTINCT container_name FROM pending_requests
+		 UNION SELECT DISTINCT container_name FROM request_logs
+		 ORDER BY container_name`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var containers []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err == nil {
+			containers = append(containers, c)
+		}
+	}
+	return containers
+}
+
+// RegisterPageRoutes registers the full-page HTML routes.
+func RegisterPageRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi.EventBus) {
+	// Compute prefix once: strip trailing slash, so "/" becomes "" and "/proxy" stays "/proxy"
+	prefix := strings.TrimRight(r.BasePath(), "/")
+
+	r.GET("/dashboard", func(c *gin.Context) {
+		dashboardTmpl.Execute(c.Writer, PageData{
+			CurrentPath: c.Request.URL.Path,
+			Prefix:      prefix,
+			Title:       "Dashboard - Greywall",
+			Containers:  getContainers(db),
+		})
+	})
+
+	r.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusFound, prefix+"/dashboard")
+	})
+
+	r.GET("/pending", func(c *gin.Context) {
+		pendingTmpl.Execute(c.Writer, PageData{
+			CurrentPath: c.Request.URL.Path,
+			Prefix:      prefix,
+			Title:       "Pending Requests - Greywall",
+			Containers:  getContainers(db),
+		})
+	})
+
+	r.GET("/rules", func(c *gin.Context) {
+		rulesTmpl.Execute(c.Writer, PageData{
+			CurrentPath: c.Request.URL.Path,
+			Prefix:      prefix,
+			Title:       "Rules - Greywall",
+			Containers:  getContainers(db),
+		})
+	})
+
+	r.GET("/logs", func(c *gin.Context) {
+		logsTmpl.Execute(c.Writer, PageData{
+			CurrentPath: c.Request.URL.Path,
+			Prefix:      prefix,
+			Title:       "Request Logs - Greywall",
+			Containers:  getContainers(db),
+		})
+	})
+}
+
+// RegisterHTMXRoutes registers the HTMX partial routes.
+func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi.EventBus) {
+	prefix := strings.TrimRight(r.BasePath(), "/")
+	htmx := r.Group("/htmx")
+
+	htmx.GET("/dashboard-stats", func(c *gin.Context) {
+		now := time.Now().UTC()
+		var fromDate, toDate time.Time
+
+		period := c.DefaultQuery("period", "today")
+		switch period {
+		case "7d":
+			fromDate = now.AddDate(0, 0, -7)
+		case "30d":
+			fromDate = now.AddDate(0, 0, -30)
+		default:
+			fromDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		}
+		toDate = now
+
+		groupBy := "hour"
+		diff := toDate.Sub(fromDate)
+		if diff > 48*time.Hour {
+			groupBy = "day"
+		}
+
+		stats, err := greywallapi.GetDashboardStats(db, fromDate, toDate, groupBy, 10)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error: %v", err)
+			return
+		}
+
+		c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		dashboardStatsTmpl.Execute(c.Writer, gin.H{
+			"Prefix": prefix,
+			"Stats":  stats,
+			"Period": period,
+		})
+	})
+
+	htmx.GET("/pending-list", func(c *gin.Context) {
+		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+		offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+		items, total, err := greywallapi.GetPendingRequests(db, greywallapi.PendingFilter{
+			Container:   c.Query("container"),
+			Destination: c.Query("destination"),
+			Limit:       limit,
+			Offset:      offset,
+		})
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error: %v", err)
+			return
+		}
+
+		c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		pendingListTmpl.Execute(c.Writer, gin.H{
+			"Items": items,
+			"Total": total,
+		})
+	})
+
+	// Allow pending via HTMX
+	htmx.POST("/pending/:id/allow", func(c *gin.Context) {
+		id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+		scope := c.DefaultPostForm("scope", "exact")
+		duration := c.DefaultPostForm("duration", "permanent")
+
+		rule, err := greywallapi.AllowPending(db, id, scope, duration, nil)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error: %v", err)
+			return
+		}
+
+		bus.Publish(greywallapi.Event{
+			Type: greywallapi.EventPendingAllowed,
+			Data: map[string]any{"pending_id": id, "rule": rule.ToJSON()},
+		})
+
+		// Re-render pending list
+		renderPendingList(c, db, prefix)
+	})
+
+	// Deny pending via HTMX
+	htmx.POST("/pending/:id/deny", func(c *gin.Context) {
+		id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+		scope := c.DefaultPostForm("scope", "exact")
+		duration := c.DefaultPostForm("duration", "permanent")
+
+		rule, err := greywallapi.DenyPending(db, id, scope, duration, nil)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error: %v", err)
+			return
+		}
+
+		bus.Publish(greywallapi.Event{
+			Type: greywallapi.EventPendingDismissed,
+			Data: map[string]any{"pending_id": id, "rule": rule.ToJSON()},
+		})
+
+		renderPendingList(c, db, prefix)
+	})
+
+	// Dismiss pending via HTMX
+	htmx.DELETE("/pending/:id", func(c *gin.Context) {
+		id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+		ok, _ := greywallapi.DeletePending(db, id)
+		if ok {
+			bus.Publish(greywallapi.Event{
+				Type: greywallapi.EventPendingDismissed,
+				Data: map[string]any{"pending_id": id},
+			})
+		}
+		renderPendingList(c, db, prefix)
+	})
+
+	// Bulk allow via HTMX
+	htmx.POST("/pending/bulk-allow", func(c *gin.Context) {
+		ids := c.PostFormArray("selected")
+		for _, idStr := range ids {
+			id, err := strconv.ParseInt(idStr, 10, 64)
+			if err != nil {
+				continue
+			}
+			rule, err := greywallapi.AllowPending(db, id, "exact", "permanent", nil)
+			if err == nil {
+				bus.Publish(greywallapi.Event{
+					Type: greywallapi.EventPendingAllowed,
+					Data: map[string]any{"pending_id": id, "rule": rule.ToJSON()},
+				})
+			}
+		}
+		renderPendingList(c, db, prefix)
+	})
+
+	// Bulk dismiss via HTMX
+	htmx.DELETE("/pending/bulk-dismiss", func(c *gin.Context) {
+		ids := c.PostFormArray("selected")
+		for _, idStr := range ids {
+			id, err := strconv.ParseInt(idStr, 10, 64)
+			if err != nil {
+				continue
+			}
+			ok, _ := greywallapi.DeletePending(db, id)
+			if ok {
+				bus.Publish(greywallapi.Event{
+					Type: greywallapi.EventPendingDismissed,
+					Data: map[string]any{"pending_id": id},
+				})
+			}
+		}
+		renderPendingList(c, db, prefix)
+	})
+
+	// Rules HTMX
+	htmx.GET("/rules-list", func(c *gin.Context) {
+		renderRulesList(c, db, prefix)
+	})
+
+	htmx.POST("/rules", func(c *gin.Context) {
+		portPattern := c.DefaultPostForm("port_pattern", "*")
+		ruleType := c.DefaultPostForm("rule_type", "permanent")
+		action := c.DefaultPostForm("action", "allow")
+		notes := c.PostForm("notes")
+
+		var expiresIn *int64
+		if ruleType == "temporary" {
+			v := int64(86400)
+			expiresIn = &v
+		}
+		var notesPtr *string
+		if notes != "" {
+			notesPtr = &notes
+		}
+
+		_, err := greywallapi.CreateRule(db, greywallapi.RuleCreateInput{
+			ContainerPattern:   c.PostForm("container_pattern"),
+			DestinationPattern: c.PostForm("destination_pattern"),
+			PortPattern:        portPattern,
+			RuleType:           ruleType,
+			Action:             action,
+			ExpiresInSeconds:   expiresIn,
+			Notes:              notesPtr,
+		})
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error: %v", err)
+			return
+		}
+
+		renderRulesList(c, db, prefix)
+	})
+
+	htmx.PUT("/rules/:id", func(c *gin.Context) {
+		id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+		cp := c.PostForm("container_pattern")
+		dp := c.PostForm("destination_pattern")
+		pp := c.PostForm("port_pattern")
+		action := c.PostForm("action")
+		notes := c.PostForm("notes")
+
+		input := greywallapi.RuleUpdateInput{}
+		if cp != "" {
+			input.ContainerPattern = &cp
+		}
+		if dp != "" {
+			input.DestinationPattern = &dp
+		}
+		if pp != "" {
+			input.PortPattern = &pp
+		}
+		if action != "" {
+			input.Action = &action
+		}
+		if notes != "" {
+			input.Notes = &notes
+		}
+
+		greywallapi.UpdateRule(db, id, input)
+		renderRulesList(c, db, prefix)
+	})
+
+	htmx.DELETE("/rules/:id", func(c *gin.Context) {
+		id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+		greywallapi.DeleteRule(db, id)
+		c.Status(http.StatusOK)
+	})
+
+	// Logs HTMX
+	htmx.GET("/logs-table", func(c *gin.Context) {
+		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+		offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+		if page, err := strconv.Atoi(c.Query("page")); err == nil && page > 1 {
+			offset = (page - 1) * limit
+		}
+
+		f := greywallapi.LogFilter{
+			Container:   c.Query("container"),
+			Destination: c.Query("destination"),
+			Result:      c.Query("result"),
+			Limit:       limit,
+			Offset:      offset,
+		}
+
+		if v := c.Query("from_date"); v != "" {
+			if t, err := time.Parse("2006-01-02T15:04", v); err == nil {
+				f.FromDate = &t
+			}
+		}
+		if v := c.Query("to_date"); v != "" {
+			if t, err := time.Parse("2006-01-02T15:04", v); err == nil {
+				f.ToDate = &t
+			}
+		}
+
+		items, total, err := greywallapi.QueryLogs(db, f)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error: %v", err)
+			return
+		}
+
+		page := 1
+		if limit > 0 && offset > 0 {
+			page = offset/limit + 1
+		}
+		pages := 1
+		if limit > 0 && total > 0 {
+			pages = int(math.Ceil(float64(total) / float64(limit)))
+		}
+
+		c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		logsTableTmpl.Execute(c.Writer, gin.H{
+			"Prefix": prefix,
+			"Items":  items,
+			"Total":  total,
+			"Page":   page,
+			"Pages":  pages,
+		})
+	})
+}
+
+func renderPendingList(c *gin.Context, db *greywallapi.DB, prefix string) {
+	items, total, _ := greywallapi.GetPendingRequests(db, greywallapi.PendingFilter{
+		Container:   c.Query("container"),
+		Destination: c.Query("destination"),
+		Limit:       100,
+	})
+
+	c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	pendingListTmpl.Execute(c.Writer, gin.H{
+		"Prefix": prefix,
+		"Items":  items,
+		"Total":  total,
+	})
+}
+
+func renderRulesList(c *gin.Context, db *greywallapi.DB, prefix string) {
+	includeExpired := c.Query("include_expired") == "true"
+	items, total, _ := greywallapi.GetRules(db, greywallapi.RuleFilter{
+		Container:      c.Query("container"),
+		Destination:    c.Query("destination"),
+		IncludeExpired: includeExpired,
+		Limit:          100,
+	})
+
+	c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	rulesListTmpl.Execute(c.Writer, gin.H{
+		"Prefix": prefix,
+		"Items":  items,
+		"Total":  total,
+	})
+}

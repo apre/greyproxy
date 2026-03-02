@@ -1,0 +1,83 @@
+# gost v3 proxy configuration with embedded greywallapi
+#
+# Runs both HTTP and SOCKS5 proxies with ACL logic provided
+# by greywallapi's built-in Go plugins (no external server).
+#
+# NOTE: This is a template file. The actual gost.yaml is generated
+# by entrypoint-gost.sh which adds custom hosts from PROXY_CUSTOM_HOSTS.
+
+log:
+  level: info
+  format: json
+  output: stdout
+
+# greywallapi: embedded management UI + REST API + plugins
+# The auther/admission/bypass/resolver names below must match
+# the names referenced by services.
+greywallapi:
+  addr: ":8888"
+  pathPrefix: /
+  db: "./proxy.db"
+  auther: auther-0
+  admission: admission-0
+  bypass: bypass-0
+  resolver: resolver-0
+
+services:
+  # HTTP/HTTPS proxy on port 3128 (backward compatible with Squid)
+  - name: http-proxy
+    addr: ":43051"
+    handler:
+      type: http
+      auther: auther-0
+    listener:
+      type: tcp
+    admission: admission-0
+    bypass: bypass-0
+    resolver: resolver-0
+    hosts: hosts-0
+
+  # SOCKS5 proxy on port 1080 (for protocols like IMAP)
+  - name: socks5-proxy
+    addr: ":43052"
+    handler:
+      type: socks5
+      auther: auther-0
+    listener:
+      type: tcp
+    admission: admission-0
+    bypass: bypass-0
+    resolver: resolver-0
+    hosts: hosts-0
+
+  # DNS proxy on port 53 (UDP + TCP)
+  - name: dns-proxy-udp
+    addr: :43053
+    handler:
+      type: dns
+    listener:
+      type: dns
+      metadata:
+        mode: udp
+    resolver: resolver-0
+    forwarder:
+      nodes:
+        - name: dns-upstream
+          addr: 127.0.0.11:53
+
+  - name: dns-proxy-tcp
+    addr: :43053
+    handler:
+      type: dns
+    listener:
+      type: tcp
+    resolver: resolver-0
+    forwarder:
+      nodes:
+        - name: dns-upstream
+          addr: 127.0.0.11:53
+
+# Static host mappings (populated by entrypoint-gost.sh)
+hosts:
+  - name: hosts-0
+    mappings: []

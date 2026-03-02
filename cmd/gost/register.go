@@ -1,6 +1,9 @@
 package main
 
 import (
+	// SQLite driver for greywallapi
+	_ "modernc.org/sqlite"
+
 	// Register connectors
 	_ "github.com/go-gost/x/connector/direct"
 	_ "github.com/go-gost/x/connector/forward"

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <!-- Custom CSS -->
+    <link href="{{.Prefix}}/static/css/style.css" rel="stylesheet">
+
+    <!-- Custom Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        serif: ['Source Serif Pro', 'Georgia', 'serif'],
+                    },
+                    colors: {
+                        background: 'rgb(255, 255, 255)',
+                        foreground: 'rgb(22, 22, 20)',
+                        card: 'rgb(249, 249, 247)',
+                        'card-foreground': 'rgb(22, 22, 20)',
+                        primary: 'rgb(217, 94, 42)',
+                        'primary-foreground': 'rgb(255, 255, 255)',
+                        secondary: 'rgb(249, 249, 247)',
+                        'secondary-foreground': 'rgb(22, 22, 20)',
+                        muted: 'rgb(240, 240, 236)',
+                        'muted-foreground': 'rgb(127, 127, 121)',
+                        accent: 'rgb(217, 94, 42)',
+                        destructive: 'rgb(180, 51, 50)',
+                        border: 'rgb(221, 221, 215)',
+                        input: 'rgb(221, 221, 215)',
+                        ring: 'rgb(217, 94, 42)',
+                    },
+                    borderRadius: {
+                        lg: '0.625rem',
+                        md: 'calc(0.625rem - 2px)',
+                        sm: 'calc(0.625rem - 4px)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @font-face { font-family: 'Inter'; src: url('{{.Prefix}}/static/fonts/inter-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Inter'; src: url('{{.Prefix}}/static/fonts/inter-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Inter'; src: url('{{.Prefix}}/static/fonts/inter-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Source Serif Pro'; src: url('{{.Prefix}}/static/fonts/source-serif-pro-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Source Serif Pro'; src: url('{{.Prefix}}/static/fonts/source-serif-pro-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+        @font-face { font-family: 'Source Serif Pro'; src: url('{{.Prefix}}/static/fonts/source-serif-pro-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        h1,h2,h3,h4,h5,h6 { font-family: 'Source Serif Pro', Georgia, serif; }
+        .htmx-indicator { display: none; }
+        .htmx-request .htmx-indicator { display: inline-block; }
+        .htmx-request.htmx-indicator { display: inline-block; }
+    </style>
+</head>
+
+<body class="bg-background text-foreground min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-card border-b border-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <span class="text-2xl">🌐</span>
+                        <span class="ml-2 text-xl font-semibold text-foreground">Proxy Dashboard</span>
+                    </div>
+                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                        <a href="{{.Prefix}}/dashboard"
+                            class="{{if contains .CurrentPath "/dashboard"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Dashboard
+                        </a>
+                        <a href="{{.Prefix}}/pending"
+                            class="{{if contains .CurrentPath "/pending"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Pending Requests
+                            <span id="pending-badge" class="hidden ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-primary-foreground bg-primary rounded-full min-w-[1.25rem]"></span>
+                        </a>
+                        <a href="{{.Prefix}}/rules"
+                            class="{{if contains .CurrentPath "/rules"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Rules
+                        </a>
+                        <a href="{{.Prefix}}/logs"
+                            class="{{if contains .CurrentPath "/logs"}}border-primary text-foreground{{else}}border-transparent text-muted-foreground hover:border-border hover:text-foreground{{end}} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+                            Request Logs
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {{block "content" .}}{{end}}
+    </main>
+
+    <!-- Toast notifications container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+    <script>
+        function showToast(message, type) {
+            type = type || 'success';
+            var toast = document.createElement('div');
+            var bgColor = type === 'success' ? 'bg-primary' : type === 'error' ? 'bg-destructive' : 'bg-muted';
+            toast.className = bgColor + ' text-white px-6 py-3 rounded-lg shadow-lg transition-opacity duration-300';
+            toast.textContent = message;
+            var container = document.getElementById('toast-container');
+            container.appendChild(toast);
+            setTimeout(function() {
+                toast.style.opacity = '0';
+                setTimeout(function() { toast.remove(); }, 300);
+            }, 3000);
+        }
+
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            if (event.detail.xhr.getResponseHeader('X-Toast-Message')) {
+                showToast(event.detail.xhr.getResponseHeader('X-Toast-Message'), 'success');
+            }
+        });
+
+        document.body.addEventListener('htmx:responseError', function(event) {
+            showToast('An error occurred. Please try again.', 'error');
+        });
+    </script>
+
+    <script>
+        (function() {
+            var ws = null;
+            var reconnectDelay = 1000;
+            var MAX_RECONNECT_DELAY = 30000;
+            var badge = document.getElementById('pending-badge');
+
+            function updateBadge(count) {
+                if (count > 0) {
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+
+            function fetchPendingCount() {
+                fetch('{{.Prefix}}/api/pending/count')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) { updateBadge(data.count); })
+                    .catch(function(err) { console.warn('Failed to fetch pending count:', err); });
+            }
+
+            function connect() {
+                var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                ws = new WebSocket(protocol + '//' + window.location.host + '{{.Prefix}}/ws');
+
+                ws.onopen = function() {
+                    reconnectDelay = 1000;
+                    fetchPendingCount();
+                };
+
+                ws.onmessage = function(event) {
+                    try {
+                        var msg = JSON.parse(event.data);
+                        if (msg.type && msg.type.indexOf('pending_request.') === 0) {
+                            fetchPendingCount();
+                            window.dispatchEvent(new CustomEvent('proxy:pending-event', { detail: msg }));
+                        }
+                    } catch (e) {}
+                };
+
+                ws.onclose = function() {
+                    setTimeout(connect, reconnectDelay);
+                    reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
+                };
+
+                ws.onerror = function() { ws.close(); };
+            }
+
+            fetchPendingCount();
+            connect();
+        })();
+    </script>
+
+    {{block "scripts" .}}{{end}}
+</body>
+
+</html>

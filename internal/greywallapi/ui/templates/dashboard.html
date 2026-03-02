@@ -1,0 +1,61 @@
+{{define "content"}}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-foreground">Dashboard</h1>
+            <p class="text-muted-foreground mt-1">Network traffic statistics and monitoring</p>
+        </div>
+        <div class="flex items-center space-x-4">
+            <select id="period-selector"
+                    class="px-4 py-2 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    hx-get="{{.Prefix}}/htmx/dashboard-stats"
+                    hx-target="#dashboard-content"
+                    hx-swap="innerHTML"
+                    hx-include="#auto-refresh">
+                <option value="today">Today</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+            </select>
+
+            <label class="flex items-center space-x-2 cursor-pointer">
+                <input type="checkbox" id="auto-refresh" name="auto_refresh"
+                       class="w-4 h-4 text-primary border-border rounded focus:ring-ring"
+                       onchange="toggleAutoRefresh(this.checked)">
+                <span class="text-sm text-foreground">Auto-refresh</span>
+            </label>
+
+            <button class="px-4 py-2 bg-card border border-border rounded-lg text-foreground hover:bg-muted transition"
+                    hx-get="{{.Prefix}}/htmx/dashboard-stats"
+                    hx-target="#dashboard-content"
+                    hx-swap="innerHTML"
+                    hx-include="#period-selector, #auto-refresh">
+                <span class="htmx-indicator inline-block w-4 h-4 border-2 border-foreground border-t-transparent rounded-full animate-spin"></span>
+                ↻ Refresh
+            </button>
+        </div>
+    </div>
+
+    <div id="dashboard-content"
+         hx-get="{{.Prefix}}/htmx/dashboard-stats"
+         hx-trigger="load"
+         hx-include="#period-selector, #auto-refresh"
+         hx-swap="innerHTML">
+        <div class="flex items-center justify-center py-20">
+            <div class="inline-block w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var autoRefreshInterval = null;
+    function toggleAutoRefresh(enabled) {
+        if (enabled) {
+            autoRefreshInterval = setInterval(function() {
+                htmx.trigger('#dashboard-content', 'load');
+            }, 30000);
+        } else {
+            if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+        }
+    }
+</script>
+{{end}}

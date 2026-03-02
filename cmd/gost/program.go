@@ -12,6 +12,10 @@ import (
 	"github.com/go-gost/core/auth"
 	"github.com/go-gost/core/logger"
 	"github.com/go-gost/core/service"
+	greywallapi "github.com/go-gost/gost/internal/greywallapi"
+	greywallapi_api "github.com/go-gost/gost/internal/greywallapi/api"
+	greywallapi_plugins "github.com/go-gost/gost/internal/greywallapi/plugins"
+	greywallapi_ui "github.com/go-gost/gost/internal/greywallapi/ui"
 	api_service "github.com/go-gost/x/api/service"
 	xauth "github.com/go-gost/x/auth"
 	"github.com/go-gost/x/config"
@@ -22,11 +26,13 @@ import (
 	metrics "github.com/go-gost/x/metrics/service"
 	"github.com/go-gost/x/registry"
 	"github.com/judwhite/go-svc"
+	"github.com/spf13/viper"
 )
 
 type program struct {
 	srvApi       service.Service
 	srvMetrics   service.Service
+	srvGreywallApi  *greywallapi.Service
 	srvProfiling *http.Server
 
 	cancel context.CancelFunc
@@ -160,6 +166,13 @@ func (p *program) run(cfg *config.Config) error {
 		}()
 	}
 
+	// Build and start greywallapi service if configured
+	if p.srvGreywallApi == nil {
+		if err := p.buildGreywallApiService(); err != nil {
+			logger.Default().Warnf("greywallapi: %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -184,6 +197,10 @@ func (p *program) Stop() error {
 	if p.srvProfiling != nil {
 		p.srvProfiling.Close()
 		logger.Default().Debug("service @profiling shutdown")
+	}
+	if p.srvGreywallApi != nil {
+		p.srvGreywallApi.Close()
+		logger.Default().Debug("service @greywallapi shutdown")
 	}
 
 	return nil
@@ -252,6 +269,86 @@ func buildApiService(cfg *config.APIConfig) (service.Service, error) {
 		api_service.AccessLogOption(cfg.AccessLog),
 		api_service.AutherOption(auther),
 	)
+}
+
+func (p *program) buildGreywallApiService() error {
+	// Read greywallapi config from the same config file using viper
+	var gaCfg greywallapi.GreywallApiConfig
+	if err := viper.UnmarshalKey("greywallapi", &gaCfg); err != nil {
+		return nil // No greywallapi section, skip silently
+	}
+	if gaCfg.Addr == "" {
+		return nil // Not configured
+	}
+
+	if gaCfg.PathPrefix == "" {
+		gaCfg.PathPrefix = "/"
+	}
+	if gaCfg.DB == "" {
+		gaCfg.DB = "./proxy.db"
+	}
+	if gaCfg.Auther == "" {
+		gaCfg.Auther = "auther-0"
+	}
+	if gaCfg.Admission == "" {
+		gaCfg.Admission = "admission-0"
+	}
+	if gaCfg.Bypass == "" {
+		gaCfg.Bypass = "bypass-0"
+	}
+	if gaCfg.Resolver == "" {
+		gaCfg.Resolver = "resolver-0"
+	}
+
+	log := logger.Default().WithFields(map[string]any{"kind": "service", "service": "@greywallapi"})
+
+	// Create shared state (this also opens the DB)
+	shared := &greywallapi_api.Shared{}
+
+	// Create a temporary service to get DB, cache, bus
+	tmpSvc, err := greywallapi.NewService(&gaCfg, nil)
+	if err != nil {
+		return err
+	}
+
+	shared.DB = tmpSvc.DB
+	shared.Cache = tmpSvc.Cache
+	shared.Bus = tmpSvc.Bus
+
+	// Create and register gost plugins
+	autherPlugin := greywallapi_plugins.NewAuther()
+	admissionPlugin := greywallapi_plugins.NewAdmission()
+	bypassPlugin := greywallapi_plugins.NewBypass(shared.DB, shared.Cache, shared.Bus)
+	resolverPlugin := greywallapi_plugins.NewResolver(shared.Cache)
+
+	registry.AutherRegistry().Register(gaCfg.Auther, autherPlugin)
+	registry.AdmissionRegistry().Register(gaCfg.Admission, admissionPlugin)
+	registry.BypassRegistry().Register(gaCfg.Bypass, bypassPlugin)
+	registry.ResolverRegistry().Register(gaCfg.Resolver, resolverPlugin)
+
+	log.Infof("plugins registered: auther=%s admission=%s bypass=%s resolver=%s",
+		gaCfg.Auther, gaCfg.Admission, gaCfg.Bypass, gaCfg.Resolver)
+
+	// Build HTTP router with REST API + HTMX UI + WebSocket
+	router, g := greywallapi_api.NewRouter(shared, gaCfg.PathPrefix)
+	greywallapi_ui.RegisterPageRoutes(g, shared.DB, shared.Bus)
+	greywallapi_ui.RegisterHTMXRoutes(g, shared.DB, shared.Bus)
+
+	// Create the actual service
+	svc := &greywallapi.Service{}
+	*svc = *tmpSvc
+	svc.SetHandler(router)
+
+	p.srvGreywallApi = svc
+
+	go func() {
+		log.Info("listening on ", svc.Addr())
+		if err := svc.Serve(); !errors.Is(err, http.ErrServerClosed) {
+			log.Error(err)
+		}
+	}()
+
+	return nil
 }
 
 func buildMetricsService(cfg *config.MetricsConfig) (service.Service, error) {

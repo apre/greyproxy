@@ -1,0 +1,141 @@
+{{$items := .Items}}
+{{$total := .Total}}
+{{if $items}}
+<!-- Desktop table -->
+<div class="hidden xl:block bg-card rounded-lg shadow-sm border border-border overflow-hidden">
+    <table class="min-w-full divide-y divide-border">
+        <thead class="bg-secondary">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-secondary-foreground uppercase tracking-wider">Action</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-secondary-foreground uppercase tracking-wider">Source</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-secondary-foreground uppercase tracking-wider">Destination</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-secondary-foreground uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="bg-card divide-y divide-border">
+            {{range $items}}
+            <tr class="hover:bg-muted transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    {{if eq .Action "deny"}}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border border-border text-foreground">✗ Deny</span>
+                    {{else}}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">✓ Allow</span>
+                    {{end}}
+                    {{if ne .RuleType "permanent"}}
+                        {{if .ExpiresAt.Valid}}
+                            {{if isExpired .ExpiresAt.Time}}
+                                <span class="text-xs text-destructive ml-1">Expired</span>
+                            {{else}}
+                                <span class="text-xs text-accent ml-1">{{expiresIn .ExpiresAt.Time}}</span>
+                            {{end}}
+                        {{else}}
+                            <span class="text-xs text-accent ml-1">Temporary</span>
+                        {{end}}
+                    {{end}}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary cursor-pointer hover:underline hover:bg-primary/20"
+                          onclick="filterByContainer('{{.ContainerPattern}}')">{{.ContainerPattern}}</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                    <span class="cursor-pointer hover:underline hover:text-primary" onclick="filterByDestination('{{.DestinationPattern}}')">{{.DestinationPattern}}</span><span class="text-muted-foreground">:{{.PortPattern}}</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                    <button hx-delete="{{.Prefix}}/htmx/rules/{{.ID}}" hx-swap="none" hx-on::after-request="triggerRulesReload()"
+                        class="inline-flex items-center px-3 py-1.5 border border-border rounded shadow-sm text-xs font-medium text-foreground bg-background hover:bg-muted">Delete</button>
+                    <button onclick="editRule({{.ID}}, '{{.ContainerPattern}}', '{{.DestinationPattern}}', '{{.PortPattern}}', '{{.RuleType}}', '{{.Action}}', '{{if .Notes.Valid}}{{.Notes.String}}{{end}}')"
+                        class="inline-flex items-center px-3 py-1.5 border border-transparent rounded shadow-sm text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90">Edit</button>
+                </td>
+            </tr>
+            {{if .Notes.Valid}}
+            <tr class="bg-muted/50">
+                <td colspan="4" class="px-6 py-2 text-sm text-muted-foreground">
+                    <span class="font-medium">Note:</span> {{.Notes.String}}
+                </td>
+            </tr>
+            {{end}}
+            {{end}}
+        </tbody>
+    </table>
+</div>
+
+<!-- Mobile cards -->
+<div class="xl:hidden space-y-3">
+    {{range $items}}
+    <div class="bg-card rounded-lg shadow-sm border border-border p-3">
+        <div class="flex justify-between items-start">
+            <div class="min-w-0">
+                <div class="flex items-center space-x-2 mb-1">
+                    <span class="text-sm font-medium text-muted-foreground">#{{.ID}}</span>
+                    {{if eq .Action "deny"}}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border border-border text-foreground">✗ Deny</span>
+                    {{else}}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">✓ Allow</span>
+                    {{end}}
+                    {{if ne .RuleType "permanent"}}
+                        {{if .ExpiresAt.Valid}}
+                            {{if isExpired .ExpiresAt.Time}}<span class="text-xs text-destructive">Expired</span>
+                            {{else}}<span class="text-xs text-accent">{{expiresIn .ExpiresAt.Time}}</span>{{end}}
+                        {{end}}
+                    {{end}}
+                </div>
+                <div class="text-sm">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">{{.ContainerPattern}}</span>
+                    <span class="text-muted-foreground mx-1">→</span>
+                    {{.DestinationPattern}}<span class="text-muted-foreground">:{{.PortPattern}}</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-end flex-shrink-0 ml-3">
+                <span class="text-xs text-muted-foreground">{{formatDate .CreatedAt}}</span>
+                <div class="flex space-x-2 mt-1">
+                    <button hx-delete="{{.Prefix}}/htmx/rules/{{.ID}}" hx-swap="none" hx-on::after-request="triggerRulesReload()"
+                        class="inline-flex items-center px-3 py-1.5 border border-border rounded shadow-sm text-xs font-medium text-foreground bg-background hover:bg-muted">Delete</button>
+                    <button onclick="editRule({{.ID}}, '{{.ContainerPattern}}', '{{.DestinationPattern}}', '{{.PortPattern}}', '{{.RuleType}}', '{{.Action}}', '{{if .Notes.Valid}}{{.Notes.String}}{{end}}')"
+                        class="inline-flex items-center px-3 py-1.5 border border-transparent rounded shadow-sm text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90">Edit</button>
+                </div>
+            </div>
+        </div>
+        {{if .Notes.Valid}}<p class="text-sm text-muted-foreground mt-1"><span class="font-medium">Note:</span> {{.Notes.String}}</p>{{end}}
+    </div>
+    {{end}}
+</div>
+
+<script>
+    function filterByContainer(value) {
+        var select = document.getElementById('container');
+        if (!select) return;
+        var options = Array.from(select.options).map(function(o) { return o.value; });
+        if (options.includes(value)) { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
+    function filterByDestination(value) {
+        var input = document.getElementById('destination');
+        if (!input) return;
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function triggerRulesReload() {
+        var form = document.getElementById('rules-filter-form');
+        if (form) form.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    function editRule(id, container, destination, port, type, action, notes) {
+        document.getElementById('modal-title').textContent = 'Edit Rule';
+        document.getElementById('container_pattern').value = container;
+        document.getElementById('destination_pattern').value = destination;
+        document.getElementById('port_pattern').value = port;
+        document.getElementById('rule_type').value = type;
+        document.getElementById('action').value = action;
+        document.getElementById('notes').value = notes;
+        document.getElementById('rule-form').setAttribute('hx-put', '{{.Prefix}}/htmx/rules/' + id);
+        document.getElementById('rule-modal').classList.remove('hidden');
+    }
+</script>
+
+{{else}}
+<div class="bg-card rounded-lg shadow-sm border border-border p-8 text-center">
+    <svg class="mx-auto h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+    <h3 class="mt-2 text-sm font-medium text-foreground">No rules</h3>
+    <p class="mt-1 text-sm text-muted-foreground">Create a rule to allow traffic.</p>
+</div>
+{{end}}
