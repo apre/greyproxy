@@ -63,7 +63,7 @@ services:
     forwarder:
       nodes:
         - name: dns-upstream
-          addr: 127.0.0.11:53
+          addr: 1.1.1.1:53
 
   - name: dns-proxy-tcp
     addr: :43053
@@ -75,7 +75,7 @@ services:
     forwarder:
       nodes:
         - name: dns-upstream
-          addr: 127.0.0.11:53
+          addr: 1.1.1.1:53
 
 # Static host mappings (populated by entrypoint-gost.sh)
 hosts:

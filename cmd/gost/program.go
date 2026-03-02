@@ -67,6 +67,10 @@ func (p *program) Start() error {
 
 	config.Set(cfg)
 
+	// Override DNS handler to capture responses for DNS cache population.
+	// Must happen before loader.Load creates services.
+	greywallapi_plugins.OverrideDNSHandler()
+
 	if err := loader.Load(cfg); err != nil {
 		return err
 	}
@@ -314,6 +318,9 @@ func (p *program) buildGreywallApiService() error {
 	shared.DB = tmpSvc.DB
 	shared.Cache = tmpSvc.Cache
 	shared.Bus = tmpSvc.Bus
+
+	// Set the shared DNS cache so the DNS handler wrapper can populate it
+	greywallapi_plugins.SetSharedDNSCache(shared.Cache)
 
 	// Create and register gost plugins
 	autherPlugin := greywallapi_plugins.NewAuther()
