@@ -15,7 +15,7 @@ log:
 # The auther/admission/bypass/resolver names below must match
 # the names referenced by services.
 greywallapi:
-  addr: ":8888"
+  addr: ":43080"
   pathPrefix: /
   db: "./greywall.db"
   auther: auther-0

@@ -50,7 +50,7 @@ var _ service.Service = (*Service)(nil)
 // The caller should register plugins and then call Serve().
 func NewService(cfg *GreywallApiConfig, handler http.Handler) (*Service, error) {
 	if cfg.Addr == "" {
-		cfg.Addr = ":8888"
+		cfg.Addr = ":43080"
 	}
 
 	addr, err := net.ResolveTCPAddr("tcp", cfg.Addr)
