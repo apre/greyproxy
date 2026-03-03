@@ -7,6 +7,9 @@
     <title>{{.Title}}</title>
     <link rel="icon" type="image/svg+xml" href="{{.Prefix}}/static/icons/favicon.svg">
 
+    <!-- Preload fonts to avoid layout shift -->
+    <link rel="preload" href="{{.Prefix}}/static/fonts/Aspekta-600.woff2" as="font" type="font/woff2" crossorigin>
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -73,13 +76,13 @@
     <nav class="bg-card border-b border-border">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
-                <div class="flex-shrink-0 flex items-center">
+                <a href="{{.Prefix}}/dashboard" class="flex-shrink-0 flex items-center cursor-pointer no-underline">
                     <img src="{{.Prefix}}/static/icons/greyhaven-icon.svg" alt="Greywall" class="h-10 w-auto">
                     <div class="ml-3">
-                        <span class="block text-xl font-semibold font-serif text-foreground leading-tight">Greywall</span>
-                        <span class="block text-xs text-muted-foreground leading-tight">GreyHaven Sandbox</span>
+                        <span class="block text-xl font-semibold font-sans text-foreground leading-tight">Greywall</span>
+                        <span class="block text-xs text-muted-foreground leading-tight" style="padding-left: 1px">GreyHaven Sandbox</span>
                     </div>
-                </div>
+                </a>
                 <!-- Mobile menu button -->
                 <div class="flex items-center sm:hidden">
                     <button type="button" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
