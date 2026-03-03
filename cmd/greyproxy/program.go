@@ -13,10 +13,10 @@ import (
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/auth"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/logger"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/service"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
-	greywallapi_api "github.com/greyhavenhq/greyproxy/internal/greywallapi/api"
-	greywallapi_plugins "github.com/greyhavenhq/greyproxy/internal/greywallapi/plugins"
-	greywallapi_ui "github.com/greyhavenhq/greyproxy/internal/greywallapi/ui"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
+	greyproxy_api "github.com/greyhavenhq/greyproxy/internal/greyproxy/api"
+	greyproxy_plugins "github.com/greyhavenhq/greyproxy/internal/greyproxy/plugins"
+	greyproxy_ui "github.com/greyhavenhq/greyproxy/internal/greyproxy/ui"
 	api_service "github.com/greyhavenhq/greyproxy/internal/gostx/api/service"
 	xauth "github.com/greyhavenhq/greyproxy/internal/gostx/auth"
 	"github.com/greyhavenhq/greyproxy/internal/gostx/config"
@@ -33,7 +33,7 @@ import (
 type program struct {
 	srvApi       service.Service
 	srvMetrics   service.Service
-	srvGreywallApi  *greywallapi.Service
+	srvGreyproxy *greyproxy.Service
 	srvProfiling *http.Server
 
 	cancel context.CancelFunc
@@ -70,7 +70,7 @@ func (p *program) Start() error {
 
 	// Override DNS handler to capture responses for DNS cache population.
 	// Must happen before loader.Load creates services.
-	greywallapi_plugins.OverrideDNSHandler()
+	greyproxy_plugins.OverrideDNSHandler()
 
 	if err := loader.Load(cfg); err != nil {
 		return err
@@ -171,10 +171,10 @@ func (p *program) run(cfg *config.Config) error {
 		}()
 	}
 
-	// Build and start greywallapi service if configured
-	if p.srvGreywallApi == nil {
-		if err := p.buildGreywallApiService(); err != nil {
-			logger.Default().Warnf("greywallapi: %v", err)
+	// Build and start greyproxy service if configured
+	if p.srvGreyproxy == nil {
+		if err := p.buildGreyproxyService(); err != nil {
+			logger.Default().Warnf("greyproxy: %v", err)
 		}
 	}
 
@@ -203,9 +203,9 @@ func (p *program) Stop() error {
 		p.srvProfiling.Close()
 		logger.Default().Debug("service @profiling shutdown")
 	}
-	if p.srvGreywallApi != nil {
-		p.srvGreywallApi.Close()
-		logger.Default().Debug("service @greywallapi shutdown")
+	if p.srvGreyproxy != nil {
+		p.srvGreyproxy.Close()
+		logger.Default().Debug("service @greyproxy shutdown")
 	}
 
 	return nil
@@ -276,11 +276,11 @@ func buildApiService(cfg *config.APIConfig) (service.Service, error) {
 	)
 }
 
-func (p *program) buildGreywallApiService() error {
-	// Read greywallapi config from the same config file using viper
-	var gaCfg greywallapi.GreywallApiConfig
-	if err := viper.UnmarshalKey("greywallapi", &gaCfg); err != nil {
-		return nil // No greywallapi section, skip silently
+func (p *program) buildGreyproxyService() error {
+	// Read greyproxy config from the same config file using viper
+	var gaCfg greyproxy.Config
+	if err := viper.UnmarshalKey("greyproxy", &gaCfg); err != nil {
+		return nil // No greyproxy section, skip silently
 	}
 	if gaCfg.Addr == "" {
 		return nil // Not configured
@@ -290,7 +290,7 @@ func (p *program) buildGreywallApiService() error {
 		gaCfg.PathPrefix = "/"
 	}
 	if gaCfg.DB == "" {
-		gaCfg.DB = filepath.Join(greywallDataHome(), "greywall.db")
+		gaCfg.DB = filepath.Join(greyproxyDataHome(), "greyproxy.db")
 	}
 	if gaCfg.Auther == "" {
 		gaCfg.Auther = "auther-0"
@@ -305,13 +305,13 @@ func (p *program) buildGreywallApiService() error {
 		gaCfg.Resolver = "resolver-0"
 	}
 
-	log := logger.Default().WithFields(map[string]any{"kind": "service", "service": "@greywallapi"})
+	log := logger.Default().WithFields(map[string]any{"kind": "service", "service": "@greyproxy"})
 
 	// Create shared state (this also opens the DB)
-	shared := &greywallapi_api.Shared{}
+	shared := &greyproxy_api.Shared{}
 
 	// Create a temporary service to get DB, cache, bus
-	tmpSvc, err := greywallapi.NewService(&gaCfg, nil)
+	tmpSvc, err := greyproxy.NewService(&gaCfg, nil)
 	if err != nil {
 		return err
 	}
@@ -321,13 +321,13 @@ func (p *program) buildGreywallApiService() error {
 	shared.Bus = tmpSvc.Bus
 
 	// Set the shared DNS cache so the DNS handler wrapper can populate it
-	greywallapi_plugins.SetSharedDNSCache(shared.Cache)
+	greyproxy_plugins.SetSharedDNSCache(shared.Cache)
 
 	// Create and register gost plugins
-	autherPlugin := greywallapi_plugins.NewAuther()
-	admissionPlugin := greywallapi_plugins.NewAdmission()
-	bypassPlugin := greywallapi_plugins.NewBypass(shared.DB, shared.Cache, shared.Bus)
-	resolverPlugin := greywallapi_plugins.NewResolver(shared.Cache)
+	autherPlugin := greyproxy_plugins.NewAuther()
+	admissionPlugin := greyproxy_plugins.NewAdmission()
+	bypassPlugin := greyproxy_plugins.NewBypass(shared.DB, shared.Cache, shared.Bus)
+	resolverPlugin := greyproxy_plugins.NewResolver(shared.Cache)
 
 	registry.AutherRegistry().Register(gaCfg.Auther, autherPlugin)
 	registry.AdmissionRegistry().Register(gaCfg.Admission, admissionPlugin)
@@ -338,16 +338,16 @@ func (p *program) buildGreywallApiService() error {
 		gaCfg.Auther, gaCfg.Admission, gaCfg.Bypass, gaCfg.Resolver)
 
 	// Build HTTP router with REST API + HTMX UI + WebSocket
-	router, g := greywallapi_api.NewRouter(shared, gaCfg.PathPrefix)
-	greywallapi_ui.RegisterPageRoutes(g, shared.DB, shared.Bus)
-	greywallapi_ui.RegisterHTMXRoutes(g, shared.DB, shared.Bus)
+	router, g := greyproxy_api.NewRouter(shared, gaCfg.PathPrefix)
+	greyproxy_ui.RegisterPageRoutes(g, shared.DB, shared.Bus)
+	greyproxy_ui.RegisterHTMXRoutes(g, shared.DB, shared.Bus)
 
 	// Create the actual service
-	svc := &greywallapi.Service{}
+	svc := &greyproxy.Service{}
 	*svc = *tmpSvc
 	svc.SetHandler(router)
 
-	p.srvGreywallApi = svc
+	p.srvGreyproxy = svc
 
 	go func() {
 		log.Info("listening on ", svc.Addr())
@@ -378,14 +378,14 @@ func buildMetricsService(cfg *config.MetricsConfig) (service.Service, error) {
 	)
 }
 
-// greywallDataHome returns the directory for Greywall data files.
-// Priority: GREYWALL_DATA_HOME > XDG_DATA_HOME/greywall > current directory.
-func greywallDataHome() string {
-	if v := os.Getenv("GREYWALL_DATA_HOME"); v != "" {
+// greyproxyDataHome returns the directory for Greyproxy data files.
+// Priority: GREYPROXY_DATA_HOME > XDG_DATA_HOME/greyproxy > current directory.
+func greyproxyDataHome() string {
+	if v := os.Getenv("GREYPROXY_DATA_HOME"); v != "" {
 		return v
 	}
 	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
-		return filepath.Join(v, "greywall")
+		return filepath.Join(v, "greyproxy")
 	}
 	return "."
 }

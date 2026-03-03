@@ -1,7 +1,7 @@
-package greywallapi
+package greyproxy
 
-// GreywallApiConfig holds configuration for the embedded proxy API service.
-type GreywallApiConfig struct {
+// Config holds configuration for the embedded proxy API service.
+type Config struct {
 	Addr       string `yaml:"addr" json:"addr"`
 	PathPrefix string `yaml:"pathPrefix" json:"pathPrefix"`
 	DB         string `yaml:"db" json:"db"`

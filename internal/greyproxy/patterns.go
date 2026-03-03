@@ -1,4 +1,4 @@
-package greywallapi
+package greyproxy
 
 import (
 	"net"

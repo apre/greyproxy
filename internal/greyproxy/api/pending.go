@@ -5,12 +5,12 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 )
 
 func PendingCountHandler(s *Shared) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		count, err := greywallapi.GetPendingCount(s.DB)
+		count, err := greyproxy.GetPendingCount(s.DB)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -24,7 +24,7 @@ func PendingListHandler(s *Shared) gin.HandlerFunc {
 		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
 		offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-		items, total, err := greywallapi.GetPendingRequests(s.DB, greywallapi.PendingFilter{
+		items, total, err := greyproxy.GetPendingRequests(s.DB, greyproxy.PendingFilter{
 			Container:   c.Query("container"),
 			Destination: c.Query("destination"),
 			Limit:       limit,
@@ -35,7 +35,7 @@ func PendingListHandler(s *Shared) gin.HandlerFunc {
 			return
 		}
 
-		jsonItems := make([]greywallapi.PendingRequestJSON, len(items))
+		jsonItems := make([]greyproxy.PendingRequestJSON, len(items))
 		for i, item := range items {
 			jsonItems[i] = item.ToJSON()
 		}
@@ -74,14 +74,14 @@ func PendingAllowHandler(s *Shared) gin.HandlerFunc {
 			req.Duration = "permanent"
 		}
 
-		rule, err := greywallapi.AllowPending(s.DB, id, req.Scope, req.Duration, req.Notes)
+		rule, err := greyproxy.AllowPending(s.DB, id, req.Scope, req.Duration, req.Notes)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
 
-		s.Bus.Publish(greywallapi.Event{
-			Type: greywallapi.EventPendingAllowed,
+		s.Bus.Publish(greyproxy.Event{
+			Type: greyproxy.EventPendingAllowed,
 			Data: gin.H{"pending_id": id, "rule": rule.ToJSON()},
 		})
 
@@ -113,14 +113,14 @@ func PendingDenyHandler(s *Shared) gin.HandlerFunc {
 			req.Duration = "permanent"
 		}
 
-		rule, err := greywallapi.DenyPending(s.DB, id, req.Scope, req.Duration, req.Notes)
+		rule, err := greyproxy.DenyPending(s.DB, id, req.Scope, req.Duration, req.Notes)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
 
-		s.Bus.Publish(greywallapi.Event{
-			Type: greywallapi.EventPendingDismissed,
+		s.Bus.Publish(greyproxy.Event{
+			Type: greyproxy.EventPendingDismissed,
 			Data: gin.H{"pending_id": id, "rule": rule.ToJSON()},
 		})
 
@@ -139,15 +139,15 @@ func PendingDeleteHandler(s *Shared) gin.HandlerFunc {
 			return
 		}
 
-		removed, err := greywallapi.DeletePending(s.DB, id)
+		removed, err := greyproxy.DeletePending(s.DB, id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
 		if removed {
-			s.Bus.Publish(greywallapi.Event{
-				Type: greywallapi.EventPendingDismissed,
+			s.Bus.Publish(greyproxy.Event{
+				Type: greyproxy.EventPendingDismissed,
 				Data: gin.H{"pending_id": id},
 			})
 		}
@@ -173,17 +173,17 @@ func PendingBulkAllowHandler(s *Shared) gin.HandlerFunc {
 			req.Duration = "permanent"
 		}
 
-		var rules []greywallapi.RuleJSON
+		var rules []greyproxy.RuleJSON
 		removed := 0
 		for _, pid := range req.PendingIDs {
-			rule, err := greywallapi.AllowPending(s.DB, pid, "exact", req.Duration, nil)
+			rule, err := greyproxy.AllowPending(s.DB, pid, "exact", req.Duration, nil)
 			if err != nil {
 				continue
 			}
 			rules = append(rules, rule.ToJSON())
 			removed++
-			s.Bus.Publish(greywallapi.Event{
-				Type: greywallapi.EventPendingAllowed,
+			s.Bus.Publish(greyproxy.Event{
+				Type: greyproxy.EventPendingAllowed,
 				Data: gin.H{"pending_id": pid, "rule": rule.ToJSON()},
 			})
 		}
@@ -209,11 +209,11 @@ func PendingBulkDismissHandler(s *Shared) gin.HandlerFunc {
 
 		removed := 0
 		for _, pid := range req.PendingIDs {
-			ok, err := greywallapi.DeletePending(s.DB, pid)
+			ok, err := greyproxy.DeletePending(s.DB, pid)
 			if err == nil && ok {
 				removed++
-				s.Bus.Publish(greywallapi.Event{
-					Type: greywallapi.EventPendingDismissed,
+				s.Bus.Publish(greyproxy.Event{
+					Type: greyproxy.EventPendingDismissed,
 					Data: gin.H{"pending_id": pid},
 				})
 			}

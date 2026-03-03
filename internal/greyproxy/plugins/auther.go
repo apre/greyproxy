@@ -20,7 +20,7 @@ func NewAuther() *Auther {
 	return &Auther{
 		log: logger.Default().WithFields(map[string]any{
 			"kind":    "auther",
-			"auther":  "greywallapi",
+			"auther":  "greyproxy",
 		}),
 	}
 }

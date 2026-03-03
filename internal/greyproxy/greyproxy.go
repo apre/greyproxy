@@ -1,4 +1,4 @@
-package greywallapi
+package greyproxy
 
 import (
 	"embed"
@@ -48,7 +48,7 @@ var _ service.Service = (*Service)(nil)
 
 // NewService creates a new proxy API service but does NOT start it.
 // The caller should register plugins and then call Serve().
-func NewService(cfg *GreywallApiConfig, handler http.Handler) (*Service, error) {
+func NewService(cfg *Config, handler http.Handler) (*Service, error) {
 	if cfg.Addr == "" {
 		cfg.Addr = ":43080"
 	}
@@ -74,7 +74,7 @@ func NewService(cfg *GreywallApiConfig, handler http.Handler) (*Service, error) 
 		return nil, err
 	}
 
-	log := logger.Default().WithFields(map[string]any{"kind": "service", "service": "@greywallapi"})
+	log := logger.Default().WithFields(map[string]any{"kind": "service", "service": "@greyproxy"})
 	log.Infof("database opened: %s", cfg.DB)
 
 	return &Service{

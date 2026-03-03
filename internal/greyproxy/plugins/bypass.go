@@ -10,7 +10,7 @@ import (
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/bypass"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/logger"
 	ctxvalue "github.com/greyhavenhq/greyproxy/internal/gostx/ctx"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 )
 
 // Bypass implements bypass.Bypass.
@@ -20,20 +20,20 @@ import (
 // IMPORTANT: In gost's blacklist mode (IsWhitelist()=false),
 // Contains() returning true means BLOCK the connection.
 type Bypass struct {
-	db    *greywallapi.DB
-	cache *greywallapi.DNSCache
-	bus   *greywallapi.EventBus
+	db    *greyproxy.DB
+	cache *greyproxy.DNSCache
+	bus   *greyproxy.EventBus
 	log   logger.Logger
 }
 
-func NewBypass(db *greywallapi.DB, cache *greywallapi.DNSCache, bus *greywallapi.EventBus) *Bypass {
+func NewBypass(db *greyproxy.DB, cache *greyproxy.DNSCache, bus *greyproxy.EventBus) *Bypass {
 	return &Bypass{
 		db:    db,
 		cache: cache,
 		bus:   bus,
 		log: logger.Default().WithFields(map[string]any{
 			"kind":   "bypass",
-			"bypass": "greywallapi",
+			"bypass": "greyproxy",
 		}),
 	}
 }
@@ -68,7 +68,7 @@ func (b *Bypass) Contains(ctx context.Context, network, addr string, opts ...byp
 	if resolvedHostname != "" {
 		matchHost = resolvedHostname
 	}
-	rule := greywallapi.FindMatchingRule(b.db, containerName, host, port, resolvedHostname)
+	rule := greyproxy.FindMatchingRule(b.db, containerName, host, port, resolvedHostname)
 
 	// Determine decision
 	var allowed bool
@@ -133,7 +133,7 @@ func resolveIdentity(clientID string) (containerName, containerID string) {
 }
 
 func (b *Bypass) logRequest(containerName, containerID, destHost string, destPort int, resolvedHostname, result string, ruleID *int64, responseTimeMs *int64) {
-	_, err := greywallapi.CreateLogEntry(b.db, greywallapi.LogCreateInput{
+	_, err := greyproxy.CreateLogEntry(b.db, greyproxy.LogCreateInput{
 		ContainerName:    containerName,
 		ContainerID:      containerID,
 		DestinationHost:  destHost,
@@ -150,20 +150,20 @@ func (b *Bypass) logRequest(containerName, containerID, destHost string, destPor
 }
 
 func (b *Bypass) createPending(containerName, containerID, destHost string, destPort int, resolvedHostname string) {
-	pending, isNew, err := greywallapi.CreateOrUpdatePending(b.db, containerName, containerID, destHost, destPort, resolvedHostname)
+	pending, isNew, err := greyproxy.CreateOrUpdatePending(b.db, containerName, containerID, destHost, destPort, resolvedHostname)
 	if err != nil {
 		b.log.Warnf("failed to create pending: %v", err)
 		return
 	}
 
 	if isNew {
-		b.bus.Publish(greywallapi.Event{
-			Type: greywallapi.EventPendingCreated,
+		b.bus.Publish(greyproxy.Event{
+			Type: greyproxy.EventPendingCreated,
 			Data: pending.ToJSON(),
 		})
 	} else {
-		b.bus.Publish(greywallapi.Event{
-			Type: greywallapi.EventPendingUpdated,
+		b.bus.Publish(greyproxy.Event{
+			Type: greyproxy.EventPendingUpdated,
 			Data: pending.ToJSON(),
 		})
 	}

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 )
 
 func DashboardHandler(s *Shared) gin.HandlerFunc {
@@ -51,7 +51,7 @@ func DashboardHandler(s *Shared) gin.HandlerFunc {
 
 		recentLimit, _ := strconv.Atoi(c.DefaultQuery("recent_limit", "10"))
 
-		stats, err := greywallapi.GetDashboardStats(s.DB, fromDate, toDate, groupBy, recentLimit)
+		stats, err := greyproxy.GetDashboardStats(s.DB, fromDate, toDate, groupBy, recentLimit)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

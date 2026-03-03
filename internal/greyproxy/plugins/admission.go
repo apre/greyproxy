@@ -17,7 +17,7 @@ func NewAdmission() *Admission {
 	return &Admission{
 		log: logger.Default().WithFields(map[string]any{
 			"kind":      "admission",
-			"admission": "greywallapi",
+			"admission": "greyproxy",
 		}),
 	}
 }

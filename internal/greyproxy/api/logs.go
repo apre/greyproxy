@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 )
 
 func LogsListHandler(s *Shared) gin.HandlerFunc {
@@ -15,7 +15,7 @@ func LogsListHandler(s *Shared) gin.HandlerFunc {
 		limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 		offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-		f := greywallapi.LogFilter{
+		f := greyproxy.LogFilter{
 			Container:   c.Query("container"),
 			Destination: c.Query("destination"),
 			Result:      c.Query("result"),
@@ -38,13 +38,13 @@ func LogsListHandler(s *Shared) gin.HandlerFunc {
 			}
 		}
 
-		items, total, err := greywallapi.QueryLogs(s.DB, f)
+		items, total, err := greyproxy.QueryLogs(s.DB, f)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		jsonItems := make([]greywallapi.RequestLogJSON, len(items))
+		jsonItems := make([]greyproxy.RequestLogJSON, len(items))
 		for i, item := range items {
 			jsonItems[i] = item.ToJSON()
 		}
@@ -84,7 +84,7 @@ func LogsStatsHandler(s *Shared) gin.HandlerFunc {
 			}
 		}
 
-		stats, err := greywallapi.GetDashboardStats(s.DB, fromDate, toDate, "hour", 0)
+		stats, err := greyproxy.GetDashboardStats(s.DB, fromDate, toDate, "hour", 0)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

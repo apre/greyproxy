@@ -1,7 +1,7 @@
 package main
 
 import (
-	// SQLite driver for greywallapi
+	// SQLite driver for greyproxy
 	_ "modernc.org/sqlite"
 
 	// Register connectors

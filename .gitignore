@@ -38,7 +38,7 @@ snap
 *.yaml
 *.txt
 dist/
-/greywall.db
-/greywall.db-shm
-/greywall.db-wal
+/greyproxy.db
+/greyproxy.db-shm
+/greyproxy.db-wal
 /greyproxy

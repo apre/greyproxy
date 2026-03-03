@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/logger"
 	"github.com/gorilla/websocket"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 )
 
 var upgrader = websocket.Upgrader{
@@ -155,7 +155,7 @@ func handleClientCommands(client *wsClient, s *Shared, log logger.Logger) {
 				notes = &cmd.Notes
 			}
 
-			rule, err := greywallapi.AllowPending(s.DB, cmd.PendingID, scope, duration, notes)
+			rule, err := greyproxy.AllowPending(s.DB, cmd.PendingID, scope, duration, notes)
 			if err != nil {
 				client.send(gin.H{
 					"type":      "error",
@@ -165,8 +165,8 @@ func handleClientCommands(client *wsClient, s *Shared, log logger.Logger) {
 				continue
 			}
 
-			s.Bus.Publish(greywallapi.Event{
-				Type: greywallapi.EventPendingAllowed,
+			s.Bus.Publish(greyproxy.Event{
+				Type: greyproxy.EventPendingAllowed,
 				Data: gin.H{"pending_id": cmd.PendingID, "rule": rule.ToJSON()},
 			})
 
@@ -179,7 +179,7 @@ func handleClientCommands(client *wsClient, s *Shared, log logger.Logger) {
 			})
 
 		case "dismiss":
-			ok, err := greywallapi.DeletePending(s.DB, cmd.PendingID)
+			ok, err := greyproxy.DeletePending(s.DB, cmd.PendingID)
 			if err != nil || !ok {
 				errMsg := "pending request not found"
 				if err != nil {
@@ -193,8 +193,8 @@ func handleClientCommands(client *wsClient, s *Shared, log logger.Logger) {
 				continue
 			}
 
-			s.Bus.Publish(greywallapi.Event{
-				Type: greywallapi.EventPendingDismissed,
+			s.Bus.Publish(greyproxy.Event{
+				Type: greyproxy.EventPendingDismissed,
 				Data: gin.H{"pending_id": cmd.PendingID},
 			})
 

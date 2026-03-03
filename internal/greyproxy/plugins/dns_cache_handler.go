@@ -10,25 +10,25 @@ import (
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/hop"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/logger"
 	md "github.com/greyhavenhq/greyproxy/internal/gostcore/metadata"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 	"github.com/greyhavenhq/greyproxy/internal/gostx/registry"
 	"github.com/miekg/dns"
 )
 
 var (
-	sharedDNSCache   *greywallapi.DNSCache
+	sharedDNSCache   *greyproxy.DNSCache
 	sharedDNSCacheMu sync.RWMutex
 )
 
 // SetSharedDNSCache sets the DNS cache used by the handler wrapper.
-// Called from buildGreywallApiService() after the cache is created.
-func SetSharedDNSCache(cache *greywallapi.DNSCache) {
+// Called from buildGreyproxyService() after the cache is created.
+func SetSharedDNSCache(cache *greyproxy.DNSCache) {
 	sharedDNSCacheMu.Lock()
 	defer sharedDNSCacheMu.Unlock()
 	sharedDNSCache = cache
 }
 
-func getSharedDNSCache() *greywallapi.DNSCache {
+func getSharedDNSCache() *greyproxy.DNSCache {
 	sharedDNSCacheMu.RLock()
 	defer sharedDNSCacheMu.RUnlock()
 	return sharedDNSCache
@@ -80,7 +80,7 @@ func (h *cachingDNSHandler) Forward(hop hop.Hop) {
 // dnsResponseCapture wraps net.Conn to intercept DNS query (Read) and response (Write).
 type dnsResponseCapture struct {
 	net.Conn
-	cache *greywallapi.DNSCache
+	cache *greyproxy.DNSCache
 	query []byte
 }
 
@@ -103,7 +103,7 @@ func (c *dnsResponseCapture) Write(b []byte) (int, error) {
 func (c *dnsResponseCapture) populateCache(response []byte) {
 	log := logger.Default().WithFields(map[string]any{
 		"kind":   "dns-cache",
-		"module": "greywallapi",
+		"module": "greyproxy",
 	})
 
 	mr := &dns.Msg{}

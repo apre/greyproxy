@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 )
 
 //go:embed templates/*
 var templatesFS embed.FS
 
-// Note: Static files are served from the greywallapi package, not embedded here.
+// Note: Static files are served from the greyproxy package, not embedded here.
 // The router in api/router.go will set up static file serving.
 
 var funcMap = template.FuncMap{
@@ -187,7 +187,7 @@ type PageData struct {
 	Data        any
 }
 
-func getContainers(db *greywallapi.DB) []string {
+func getContainers(db *greyproxy.DB) []string {
 	rows, err := db.ReadDB().Query(
 		`SELECT DISTINCT container_name FROM pending_requests
 		 UNION SELECT DISTINCT container_name FROM request_logs
@@ -207,7 +207,7 @@ func getContainers(db *greywallapi.DB) []string {
 }
 
 // RegisterPageRoutes registers the full-page HTML routes.
-func RegisterPageRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi.EventBus) {
+func RegisterPageRoutes(r *gin.RouterGroup, db *greyproxy.DB, bus *greyproxy.EventBus) {
 	// Compute prefix once: strip trailing slash, so "/" becomes "" and "/proxy" stays "/proxy"
 	prefix := strings.TrimRight(r.BasePath(), "/")
 
@@ -253,7 +253,7 @@ func RegisterPageRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 }
 
 // RegisterHTMXRoutes registers the HTMX partial routes.
-func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi.EventBus) {
+func RegisterHTMXRoutes(r *gin.RouterGroup, db *greyproxy.DB, bus *greyproxy.EventBus) {
 	prefix := strings.TrimRight(r.BasePath(), "/")
 	htmx := r.Group("/htmx")
 
@@ -278,7 +278,7 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 			groupBy = "day"
 		}
 
-		stats, err := greywallapi.GetDashboardStats(db, fromDate, toDate, groupBy, 10)
+		stats, err := greyproxy.GetDashboardStats(db, fromDate, toDate, groupBy, 10)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "Error: %v", err)
 			return
@@ -299,7 +299,7 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 		container := c.Query("container")
 		destination := c.Query("destination")
 
-		items, total, err := greywallapi.GetPendingRequests(db, greywallapi.PendingFilter{
+		items, total, err := greyproxy.GetPendingRequests(db, greyproxy.PendingFilter{
 			Container:   container,
 			Destination: destination,
 			Limit:       limit,
@@ -327,14 +327,14 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 		scope := c.DefaultPostForm("scope", "exact")
 		duration := c.DefaultPostForm("duration", "permanent")
 
-		rule, err := greywallapi.AllowPending(db, id, scope, duration, nil)
+		rule, err := greyproxy.AllowPending(db, id, scope, duration, nil)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "Error: %v", err)
 			return
 		}
 
-		bus.Publish(greywallapi.Event{
-			Type: greywallapi.EventPendingAllowed,
+		bus.Publish(greyproxy.Event{
+			Type: greyproxy.EventPendingAllowed,
 			Data: map[string]any{"pending_id": id, "rule": rule.ToJSON()},
 		})
 
@@ -348,14 +348,14 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 		scope := c.DefaultPostForm("scope", "exact")
 		duration := c.DefaultPostForm("duration", "permanent")
 
-		rule, err := greywallapi.DenyPending(db, id, scope, duration, nil)
+		rule, err := greyproxy.DenyPending(db, id, scope, duration, nil)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "Error: %v", err)
 			return
 		}
 
-		bus.Publish(greywallapi.Event{
-			Type: greywallapi.EventPendingDismissed,
+		bus.Publish(greyproxy.Event{
+			Type: greyproxy.EventPendingDismissed,
 			Data: map[string]any{"pending_id": id, "rule": rule.ToJSON()},
 		})
 
@@ -365,10 +365,10 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 	// Dismiss pending via HTMX
 	htmx.DELETE("/pending/:id", func(c *gin.Context) {
 		id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-		ok, _ := greywallapi.DeletePending(db, id)
+		ok, _ := greyproxy.DeletePending(db, id)
 		if ok {
-			bus.Publish(greywallapi.Event{
-				Type: greywallapi.EventPendingDismissed,
+			bus.Publish(greyproxy.Event{
+				Type: greyproxy.EventPendingDismissed,
 				Data: map[string]any{"pending_id": id},
 			})
 		}
@@ -383,10 +383,10 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 			if err != nil {
 				continue
 			}
-			rule, err := greywallapi.AllowPending(db, id, "exact", "permanent", nil)
+			rule, err := greyproxy.AllowPending(db, id, "exact", "permanent", nil)
 			if err == nil {
-				bus.Publish(greywallapi.Event{
-					Type: greywallapi.EventPendingAllowed,
+				bus.Publish(greyproxy.Event{
+					Type: greyproxy.EventPendingAllowed,
 					Data: map[string]any{"pending_id": id, "rule": rule.ToJSON()},
 				})
 			}
@@ -402,10 +402,10 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 			if err != nil {
 				continue
 			}
-			ok, _ := greywallapi.DeletePending(db, id)
+			ok, _ := greyproxy.DeletePending(db, id)
 			if ok {
-				bus.Publish(greywallapi.Event{
-					Type: greywallapi.EventPendingDismissed,
+				bus.Publish(greyproxy.Event{
+					Type: greyproxy.EventPendingDismissed,
 					Data: map[string]any{"pending_id": id},
 				})
 			}
@@ -434,7 +434,7 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 			notesPtr = &notes
 		}
 
-		_, err := greywallapi.CreateRule(db, greywallapi.RuleCreateInput{
+		_, err := greyproxy.CreateRule(db, greyproxy.RuleCreateInput{
 			ContainerPattern:   c.PostForm("container_pattern"),
 			DestinationPattern: c.PostForm("destination_pattern"),
 			PortPattern:        portPattern,
@@ -459,7 +459,7 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 		action := c.PostForm("action")
 		notes := c.PostForm("notes")
 
-		input := greywallapi.RuleUpdateInput{}
+		input := greyproxy.RuleUpdateInput{}
 		if cp != "" {
 			input.ContainerPattern = &cp
 		}
@@ -476,13 +476,13 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 			input.Notes = &notes
 		}
 
-		greywallapi.UpdateRule(db, id, input)
+		greyproxy.UpdateRule(db, id, input)
 		renderRulesList(c, db, prefix)
 	})
 
 	htmx.DELETE("/rules/:id", func(c *gin.Context) {
 		id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-		greywallapi.DeleteRule(db, id)
+		greyproxy.DeleteRule(db, id)
 		c.Status(http.StatusOK)
 	})
 
@@ -501,7 +501,7 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 		fromDateStr := c.Query("from_date")
 		toDateStr := c.Query("to_date")
 
-		f := greywallapi.LogFilter{
+		f := greyproxy.LogFilter{
 			Container:   container,
 			Destination: destination,
 			Result:      result,
@@ -520,7 +520,7 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 			}
 		}
 
-		items, total, err := greywallapi.QueryLogs(db, f)
+		items, total, err := greyproxy.QueryLogs(db, f)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "Error: %v", err)
 			return
@@ -549,11 +549,11 @@ func RegisterHTMXRoutes(r *gin.RouterGroup, db *greywallapi.DB, bus *greywallapi
 	})
 }
 
-func renderPendingList(c *gin.Context, db *greywallapi.DB, prefix string) {
+func renderPendingList(c *gin.Context, db *greyproxy.DB, prefix string) {
 	container := c.Query("container")
 	destination := c.Query("destination")
 
-	items, total, _ := greywallapi.GetPendingRequests(db, greywallapi.PendingFilter{
+	items, total, _ := greyproxy.GetPendingRequests(db, greyproxy.PendingFilter{
 		Container:   container,
 		Destination: destination,
 		Limit:       100,
@@ -570,13 +570,13 @@ func renderPendingList(c *gin.Context, db *greywallapi.DB, prefix string) {
 	})
 }
 
-func renderRulesList(c *gin.Context, db *greywallapi.DB, prefix string) {
+func renderRulesList(c *gin.Context, db *greyproxy.DB, prefix string) {
 	container := c.Query("container")
 	destination := c.Query("destination")
 	action := c.Query("action")
 	includeExpired := c.Query("include_expired") == "true"
 
-	items, total, _ := greywallapi.GetRules(db, greywallapi.RuleFilter{
+	items, total, _ := greyproxy.GetRules(db, greyproxy.RuleFilter{
 		Container:      container,
 		Destination:    destination,
 		Action:         action,

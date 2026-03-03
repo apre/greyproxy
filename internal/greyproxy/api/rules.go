@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 )
 
 func RulesListHandler(s *Shared) gin.HandlerFunc {
@@ -14,7 +14,7 @@ func RulesListHandler(s *Shared) gin.HandlerFunc {
 		offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 		includeExpired := c.Query("include_expired") == "true"
 
-		items, total, err := greywallapi.GetRules(s.DB, greywallapi.RuleFilter{
+		items, total, err := greyproxy.GetRules(s.DB, greyproxy.RuleFilter{
 			Container:      c.Query("container"),
 			Destination:    c.Query("destination"),
 			Action:         c.Query("action"),
@@ -27,7 +27,7 @@ func RulesListHandler(s *Shared) gin.HandlerFunc {
 			return
 		}
 
-		jsonItems := make([]greywallapi.RuleJSON, len(items))
+		jsonItems := make([]greyproxy.RuleJSON, len(items))
 		for i, item := range items {
 			jsonItems[i] = item.ToJSON()
 		}
@@ -41,13 +41,13 @@ func RulesListHandler(s *Shared) gin.HandlerFunc {
 
 func RulesCreateHandler(s *Shared) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var input greywallapi.RuleCreateInput
+		var input greyproxy.RuleCreateInput
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		rule, err := greywallapi.CreateRule(s.DB, input)
+		rule, err := greyproxy.CreateRule(s.DB, input)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -65,13 +65,13 @@ func RulesUpdateHandler(s *Shared) gin.HandlerFunc {
 			return
 		}
 
-		var input greywallapi.RuleUpdateInput
+		var input greyproxy.RuleUpdateInput
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		rule, err := greywallapi.UpdateRule(s.DB, id, input)
+		rule, err := greyproxy.UpdateRule(s.DB, id, input)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -87,13 +87,13 @@ func RulesUpdateHandler(s *Shared) gin.HandlerFunc {
 
 func RulesIngestHandler(s *Shared) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var input []greywallapi.IngestRuleInput
+		var input []greyproxy.IngestRuleInput
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		result, err := greywallapi.IngestRules(s.DB, input)
+		result, err := greyproxy.IngestRules(s.DB, input)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -111,7 +111,7 @@ func RulesDeleteHandler(s *Shared) gin.HandlerFunc {
 			return
 		}
 
-		deleted, err := greywallapi.DeleteRule(s.DB, id)
+		deleted, err := greyproxy.DeleteRule(s.DB, id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

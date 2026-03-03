@@ -1,4 +1,4 @@
-package greywallapi
+package greyproxy
 
 import (
 	"database/sql"
@@ -12,7 +12,7 @@ import (
 func setupTestDB(t *testing.T) *DB {
 	t.Helper()
 
-	tmpFile, err := os.CreateTemp("", "greywallapi_test_*.db")
+	tmpFile, err := os.CreateTemp("", "greyproxy_test_*.db")
 	if err != nil {
 		t.Fatal(err)
 	}

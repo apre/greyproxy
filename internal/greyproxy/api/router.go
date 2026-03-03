@@ -5,14 +5,14 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 )
 
 // Shared holds shared state passed to all handlers.
 type Shared struct {
-	DB    *greywallapi.DB
-	Cache *greywallapi.DNSCache
-	Bus   *greywallapi.EventBus
+	DB    *greyproxy.DB
+	Cache *greyproxy.DNSCache
+	Bus   *greyproxy.EventBus
 }
 
 // NewRouter creates the Gin router with all routes.
@@ -74,7 +74,7 @@ func NewRouter(s *Shared, pathPrefix string) (*gin.Engine, *gin.RouterGroup) {
 		} else {
 			c.Header("Cache-Control", "public, max-age=3600")
 		}
-		c.FileFromFS("static"+filepath, http.FS(greywallapi.StaticFS))
+		c.FileFromFS("static"+filepath, http.FS(greyproxy.StaticFS))
 	})
 
 	return r, g

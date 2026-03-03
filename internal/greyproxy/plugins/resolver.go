@@ -7,22 +7,22 @@ import (
 
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/logger"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/resolver"
-	greywallapi "github.com/greyhavenhq/greyproxy/internal/greywallapi"
+	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 )
 
 // Resolver implements resolver.Resolver.
 // It resolves hostnames to IPs and populates the DNS cache.
 type Resolver struct {
-	cache *greywallapi.DNSCache
+	cache *greyproxy.DNSCache
 	log   logger.Logger
 }
 
-func NewResolver(cache *greywallapi.DNSCache) *Resolver {
+func NewResolver(cache *greyproxy.DNSCache) *Resolver {
 	return &Resolver{
 		cache: cache,
 		log: logger.Default().WithFields(map[string]any{
 			"kind":     "resolver",
-			"resolver": "greywallapi",
+			"resolver": "greyproxy",
 		}),
 	}
 }
