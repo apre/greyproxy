@@ -30,17 +30,58 @@ This software is meant to be used with greywall (to be published soon)
 
 ## Quick Start
 
-### From Source
+### Build from Source
 
 ```bash
 git clone https://github.com/greyhavenhq/greyproxy.git
-cd greyproxy/cmd/greyproxy
-go build
+cd greyproxy
+go build ./cmd/greyproxy
+```
+
+### Install
+
+Install the binary to `~/.local/bin/` and register it as a systemd user service:
+
+```bash
+./greyproxy install
+```
+
+This copies the binary, registers a systemd user service, and starts it automatically. The dashboard will be available at `http://localhost:43080`.
+
+To remove everything:
+
+```bash
+greyproxy uninstall
+```
+
+### Run in Foreground
+
+To run the server directly without installing as a service:
+
+```bash
+greyproxy serve
+```
+
+Or with a custom configuration file:
+
+```bash
+greyproxy serve -C greyproxy.yml
+```
+
+### Service Management
+
+Once installed, manage the service with:
+
+```bash
+greyproxy service status
+greyproxy service start
+greyproxy service stop
+greyproxy service restart
 ```
 
 ### Configuration
 
-Greyproxy uses a YAML configuration file. See [`greyproxy.yml`](greyproxy.yml) for a full example.
+Greyproxy ships with a sensible default configuration embedded in the binary. To customize, pass a YAML config file with `-C`. See [`greyproxy.yml`](greyproxy.yml) for a full example.
 
 ```yaml
 greyproxy:
@@ -62,14 +103,6 @@ services:
     listener:
       type: tcp
 ```
-
-### Run
-
-```bash
-./greyproxy -C greyproxy.yml
-```
-
-The dashboard will be available at `http://localhost:43080`.
 
 ## Default Ports
 

@@ -102,31 +102,68 @@ func parseFlags() {
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "service" {
+	if len(os.Args) < 2 {
+		printUsage()
+		os.Exit(1)
+	}
+
+	switch os.Args[1] {
+	case "serve":
+		os.Args = append(os.Args[:1], os.Args[2:]...)
+		parseFlags()
+
+		log := xlogger.NewLogger()
+		logger.SetDefault(log)
+
+		p := &program{}
+		p.initParser()
+
+		svcConfig := &service.Config{
+			Name:        "greyproxy",
+			DisplayName: "Greyproxy",
+			Description: "Greyproxy network proxy service",
+		}
+
+		s, err := service.New(p, svcConfig)
+		if err != nil {
+			logger.Default().Fatal(err)
+		}
+
+		if err := s.Run(); err != nil {
+			logger.Default().Fatal(err)
+		}
+
+	case "service":
 		handleServiceCommand(os.Args[2:])
-		return
+
+	case "install":
+		handleInstall()
+
+	case "uninstall":
+		handleUninstall()
+
+	case "-V", "--version":
+		fmt.Fprintf(os.Stdout, "greyproxy %s (%s %s/%s)\n",
+			version, runtime.Version(), runtime.GOOS, runtime.GOARCH)
+
+	default:
+		printUsage()
+		os.Exit(1)
 	}
+}
 
-	parseFlags()
+func printUsage() {
+	fmt.Fprintf(os.Stderr, `greyproxy %s (%s %s/%s)
 
-	log := xlogger.NewLogger()
-	logger.SetDefault(log)
+Usage: greyproxy <command>
 
-	p := &program{}
-	p.initParser()
+Commands:
+  serve       Run the proxy server in foreground
+  install     Install binary and register systemd user service
+  uninstall   Stop service, remove registration and binary
+  service     Manage the OS service (start/stop/restart/status/...)
 
-	svcConfig := &service.Config{
-		Name:        "greyproxy",
-		DisplayName: "Greyproxy",
-		Description: "Greyproxy network proxy service",
-	}
-
-	s, err := service.New(p, svcConfig)
-	if err != nil {
-		logger.Default().Fatal(err)
-	}
-
-	if err := s.Run(); err != nil {
-		logger.Default().Fatal(err)
-	}
+Run "greyproxy --version" to print version info.
+Run "greyproxy service" for service subcommand help.
+`, version, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 }
