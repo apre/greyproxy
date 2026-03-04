@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"os"
 	"strings"
@@ -28,12 +29,13 @@ func Parse() (*config.Config, error) {
 }
 
 type Args struct {
-	CfgFile     string
-	Services    []string
-	Nodes       []string
-	Debug       bool
-	Trace       bool
-	MetricsAddr string
+	CfgFile       string
+	DefaultConfig []byte // embedded default config (used when CfgFile is empty)
+	Services      []string
+	Nodes         []string
+	Debug         bool
+	Trace         bool
+	MetricsAddr   string
 }
 
 type parser struct {
@@ -67,6 +69,11 @@ func (p *parser) Parse() (*config.Config, error) {
 			if err := cfg.ReadFile(cfgFile); err != nil { // file
 				return nil, err
 			}
+		}
+	} else if len(p.args.DefaultConfig) > 0 {
+		// No -C flag: use the embedded default configuration.
+		if err := cfg.Read(bytes.NewReader(p.args.DefaultConfig), "yaml"); err != nil {
+			return nil, err
 		}
 	}
 

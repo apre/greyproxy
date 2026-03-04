@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	defaults "github.com/greyhavenhq/greyproxy"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/logger"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/service"
 	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
@@ -37,12 +38,13 @@ type program struct {
 
 func (p *program) Init(env svc.Environment) error {
 	parser.Init(parser.Args{
-		CfgFile:     cfgFile,
-		Services:    services,
-		Nodes:       nodes,
-		Debug:       debug,
-		Trace:       trace,
-		MetricsAddr: metricsAddr,
+		CfgFile:       cfgFile,
+		DefaultConfig: defaults.DefaultConfig,
+		Services:      services,
+		Nodes:         nodes,
+		Debug:         debug,
+		Trace:         trace,
+		MetricsAddr:   metricsAddr,
 	})
 
 	return nil
