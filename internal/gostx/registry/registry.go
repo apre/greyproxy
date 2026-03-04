@@ -11,7 +11,6 @@ import (
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/chain"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/hop"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/hosts"
-	"github.com/greyhavenhq/greyproxy/internal/gostcore/ingress"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/limiter/conn"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/limiter/rate"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/limiter/traffic"
@@ -20,8 +19,6 @@ import (
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/recorder"
 	reg "github.com/greyhavenhq/greyproxy/internal/gostcore/registry"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/resolver"
-	"github.com/greyhavenhq/greyproxy/internal/gostcore/router"
-	"github.com/greyhavenhq/greyproxy/internal/gostcore/sd"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/service"
 )
 
@@ -48,9 +45,6 @@ var (
 	connLimiterReg    reg.Registry[conn.ConnLimiter]       = new(connLimiterRegistry)
 	rateLimiterReg    reg.Registry[rate.RateLimiter]       = new(rateLimiterRegistry)
 
-	ingressReg  reg.Registry[ingress.Ingress]   = new(ingressRegistry)
-	routerReg   reg.Registry[router.Router]     = new(routerRegistry)
-	sdReg       reg.Registry[sd.SD]             = new(sdRegistry)
 	observerReg reg.Registry[observer.Observer] = new(observerRegistry)
 
 	loggerReg reg.Registry[logger.Logger] = new(loggerRegistry)
@@ -167,18 +161,6 @@ func ConnLimiterRegistry() reg.Registry[conn.ConnLimiter] {
 
 func RateLimiterRegistry() reg.Registry[rate.RateLimiter] {
 	return rateLimiterReg
-}
-
-func IngressRegistry() reg.Registry[ingress.Ingress] {
-	return ingressReg
-}
-
-func RouterRegistry() reg.Registry[router.Router] {
-	return routerReg
-}
-
-func SDRegistry() reg.Registry[sd.SD] {
-	return sdReg
 }
 
 func ObserverRegistry() reg.Registry[observer.Observer] {

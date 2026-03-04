@@ -26,27 +26,11 @@ var (
 	globalMux sync.RWMutex
 )
 
-func Global() *Config {
-	globalMux.RLock()
-	defer globalMux.RUnlock()
-
-	cfg := &Config{}
-	*cfg = *global
-	return cfg
-}
-
 func Set(c *Config) {
 	globalMux.Lock()
 	defer globalMux.Unlock()
 
 	global = c
-}
-
-func OnUpdate(f func(c *Config) error) error {
-	globalMux.Lock()
-	defer globalMux.Unlock()
-
-	return f(global)
 }
 
 type LogConfig struct {
