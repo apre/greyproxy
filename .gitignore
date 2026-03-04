@@ -37,7 +37,6 @@ snap
 *.pem
 *.yaml
 !.goreleaser.yaml
-!internal/gostx/api/swagger.yaml
 *.txt
 dist/
 /greyproxy.db

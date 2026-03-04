@@ -10,15 +10,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/greyhavenhq/greyproxy/internal/gostcore/auth"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/logger"
 	"github.com/greyhavenhq/greyproxy/internal/gostcore/service"
 	greyproxy "github.com/greyhavenhq/greyproxy/internal/greyproxy"
 	greyproxy_api "github.com/greyhavenhq/greyproxy/internal/greyproxy/api"
 	greyproxy_plugins "github.com/greyhavenhq/greyproxy/internal/greyproxy/plugins"
 	greyproxy_ui "github.com/greyhavenhq/greyproxy/internal/greyproxy/ui"
-	api_service "github.com/greyhavenhq/greyproxy/internal/gostx/api/service"
-	xauth "github.com/greyhavenhq/greyproxy/internal/gostx/auth"
 	"github.com/greyhavenhq/greyproxy/internal/gostx/config"
 	"github.com/greyhavenhq/greyproxy/internal/gostx/config/loader"
 	auth_parser "github.com/greyhavenhq/greyproxy/internal/gostx/config/parsing/auth"
@@ -31,7 +28,6 @@ import (
 )
 
 type program struct {
-	srvApi       service.Service
 	srvMetrics   service.Service
 	srvGreyproxy *greyproxy.Service
 	srvProfiling *http.Server
@@ -46,7 +42,6 @@ func (p *program) Init(env svc.Environment) error {
 		Nodes:       nodes,
 		Debug:       debug,
 		Trace:       trace,
-		ApiAddr:     apiAddr,
 		MetricsAddr: metricsAddr,
 	})
 
@@ -92,30 +87,6 @@ func (p *program) run(cfg *config.Config) error {
 		svc := svc
 		go func() {
 			svc.Serve()
-		}()
-	}
-
-	if p.srvApi != nil {
-		p.srvApi.Close()
-		p.srvApi = nil
-	}
-	if cfg.API != nil {
-		s, err := buildApiService(cfg.API)
-		if err != nil {
-			return err
-		}
-
-		p.srvApi = s
-
-		go func() {
-			defer s.Close()
-
-			log := logger.Default().WithFields(map[string]any{"kind": "service", "service": "@api"})
-
-			log.Info("listening on ", s.Addr())
-			if err := s.Serve(); !errors.Is(err, http.ErrServerClosed) {
-				log.Error(err)
-			}
 		}()
 	}
 
@@ -191,10 +162,6 @@ func (p *program) Stop() error {
 		logger.Default().Debugf("service %s shutdown", name)
 	}
 
-	if p.srvApi != nil {
-		p.srvApi.Close()
-		logger.Default().Debug("service @api shutdown")
-	}
 	if p.srvMetrics != nil {
 		p.srvMetrics.Close()
 		logger.Default().Debug("service @metrics shutdown")
@@ -246,34 +213,6 @@ func (p *program) reloadConfig() error {
 	}
 
 	return nil
-}
-
-func buildApiService(cfg *config.APIConfig) (service.Service, error) {
-	var authers []auth.Authenticator
-	if auther := auth_parser.ParseAutherFromAuth(cfg.Auth); auther != nil {
-		authers = append(authers, auther)
-	}
-	if cfg.Auther != "" {
-		authers = append(authers, registry.AutherRegistry().Get(cfg.Auther))
-	}
-
-	var auther auth.Authenticator
-	if len(authers) > 0 {
-		auther = xauth.AuthenticatorGroup(authers...)
-	}
-
-	network := "tcp"
-	addr := cfg.Addr
-	if strings.HasPrefix(addr, "unix://") {
-		network = "unix"
-		addr = strings.TrimPrefix(addr, "unix://")
-	}
-	return api_service.NewService(
-		network, addr,
-		api_service.PathPrefixOption(cfg.PathPrefix),
-		api_service.AccessLogOption(cfg.AccessLog),
-		api_service.AutherOption(auther),
-	)
 }
 
 func (p *program) buildGreyproxyService() error {

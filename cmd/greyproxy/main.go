@@ -34,8 +34,7 @@ var (
 	nodes        stringList
 	debug        bool
 	trace        bool
-	apiAddr      string
-	metricsAddr  string
+	metricsAddr string
 )
 
 func init() {
@@ -92,7 +91,6 @@ func init() {
 	flag.StringVar(&outputFormat, "O", "", "output format, one of yaml|json format")
 	flag.BoolVar(&debug, "D", false, "debug mode")
 	flag.BoolVar(&trace, "DD", false, "trace mode")
-	flag.StringVar(&apiAddr, "api", "", "api service address")
 	flag.StringVar(&metricsAddr, "metrics", "", "metrics service address")
 	flag.Parse()
 

@@ -33,7 +33,6 @@ type Args struct {
 	Nodes       []string
 	Debug       bool
 	Trace       bool
-	ApiAddr     string
 	MetricsAddr string
 }
 
@@ -77,7 +76,7 @@ func (p *parser) Parse() (*config.Config, error) {
 	}
 	cfg = mergeConfig(cfg, cmdCfg)
 
-	if len(cfg.Services) == 0 && p.args.ApiAddr == "" && cfg.API == nil {
+	if len(cfg.Services) == 0 {
 		if err := cfg.Load(); err != nil {
 			return nil, err
 		}
@@ -86,11 +85,6 @@ func (p *parser) Parse() (*config.Config, error) {
 	if v := os.Getenv("GOST_LOGGER_LEVEL"); v != "" {
 		cfg.Log = &config.LogConfig{
 			Level: v,
-		}
-	}
-	if v := os.Getenv("GOST_API"); v != "" {
-		cfg.API = &config.APIConfig{
-			Addr: v,
 		}
 	}
 	if v := os.Getenv("GOST_METRICS"); v != "" {
@@ -115,31 +109,6 @@ func (p *parser) Parse() (*config.Config, error) {
 		}
 	}
 
-	if p.args.ApiAddr != "" {
-		cfg.API = &config.APIConfig{
-			Addr: p.args.ApiAddr,
-		}
-		if url, _ := cmd.Norm(p.args.ApiAddr); url != nil {
-			cfg.API.Addr = url.Host
-			if url.User != nil {
-				username := url.User.Username()
-				password, _ := url.User.Password()
-				cfg.API.Auth = &config.AuthConfig{
-					Username: username,
-					Password: password,
-				}
-			}
-			m := map[string]any{}
-			for k, v := range url.Query() {
-				if len(v) > 0 {
-					m[k] = v[0]
-				}
-			}
-			md := xmd.NewMetadata(m)
-			cfg.API.PathPrefix = mdutil.GetString(md, "pathPrefix")
-			cfg.API.AccessLog = mdutil.GetBool(md, "accesslog")
-		}
-	}
 	if p.args.MetricsAddr != "" {
 		cfg.Metrics = &config.MetricsConfig{
 			Addr: p.args.MetricsAddr,
@@ -194,10 +163,9 @@ func mergeConfig(cfg1, cfg2 *config.Config) *config.Config {
 		Loggers:    append(cfg1.Loggers, cfg2.Loggers...),
 		Routers:    append(cfg1.Routers, cfg2.Routers...),
 		Observers:  append(cfg1.Observers, cfg2.Observers...),
-		TLS:        cfg1.TLS,
-		Log:        cfg1.Log,
-		API:        cfg1.API,
-		Metrics:    cfg1.Metrics,
+		TLS:     cfg1.TLS,
+		Log:     cfg1.Log,
+		Metrics: cfg1.Metrics,
 		Profiling:  cfg1.Profiling,
 	}
 	if cfg2.TLS != nil {
@@ -205,9 +173,6 @@ func mergeConfig(cfg1, cfg2 *config.Config) *config.Config {
 	}
 	if cfg2.Log != nil {
 		cfg.Log = cfg2.Log
-	}
-	if cfg2.API != nil {
-		cfg.API = cfg2.API
 	}
 	if cfg2.Metrics != nil {
 		cfg.Metrics = cfg2.Metrics
