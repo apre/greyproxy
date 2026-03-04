@@ -26,6 +26,8 @@ RUN cd cmd/greyproxy && \
 
 FROM alpine:3.22
 
+LABEL org.opencontainers.image.source="https://github.com/greyhavenhq/greyproxy"
+
 # add iptables for tun/tap
 RUN apk add --no-cache iptables
 
@@ -34,3 +36,4 @@ WORKDIR /bin/
 COPY --from=builder /app/cmd/greyproxy/greyproxy .
 
 ENTRYPOINT ["/bin/greyproxy"]
+CMD ["serve"]
