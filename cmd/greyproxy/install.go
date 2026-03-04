@@ -34,6 +34,7 @@ func newServiceControl() (service.Service, error) {
 		DisplayName: "Greyproxy",
 		Description: "Greyproxy network proxy service",
 		Executable:  binDst,
+		Arguments:   []string{"serve"},
 		Option: service.KeyValue{
 			"UserService": true,
 		},

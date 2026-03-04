@@ -35,6 +35,7 @@ func handleServiceCommand(args []string) {
 		Name:        nameFlag,
 		DisplayName: "Greyproxy",
 		Description: "Greyproxy network proxy service",
+		Arguments:   []string{"serve"},
 		Option: service.KeyValue{
 			"UserService": true,
 		},
@@ -48,7 +49,7 @@ func handleServiceCommand(args []string) {
 			fmt.Fprintf(os.Stderr, "error: resolving config path: %v\n", err)
 			os.Exit(1)
 		}
-		svcConfig.Arguments = []string{"-C", absPath}
+		svcConfig.Arguments = []string{"serve", "-C", absPath}
 	}
 
 	p := &program{}
