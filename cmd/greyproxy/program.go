@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -259,6 +261,25 @@ func (p *program) buildGreyproxyService() error {
 	shared.DB = tmpSvc.DB
 	shared.Cache = tmpSvc.Cache
 	shared.Bus = tmpSvc.Bus
+	shared.Version = version
+
+	// Collect listening ports for the health endpoint
+	ports := make(map[string]int)
+	if _, portStr, err := net.SplitHostPort(gaCfg.Addr); err == nil {
+		if p, err := strconv.Atoi(portStr); err == nil {
+			ports["api"] = p
+		}
+	}
+	for name, svc := range registry.ServiceRegistry().GetAll() {
+		if addr := svc.Addr(); addr != nil {
+			if _, portStr, err := net.SplitHostPort(addr.String()); err == nil {
+				if p, err := strconv.Atoi(portStr); err == nil {
+					ports[name] = p
+				}
+			}
+		}
+	}
+	shared.Ports = ports
 
 	// Set the shared DNS cache so the DNS handler wrapper can populate it
 	greyproxy_plugins.SetSharedDNSCache(shared.Cache)
