@@ -71,11 +71,14 @@ func handleInstall(args []string) {
 	if !force {
 		fmt.Printf("\nProceed? [Y/n] ")
 		if !askConfirm() {
+			fmt.Println("You can start the server manually with: greyproxy serve")
+			fmt.Println("Dashboard: http://localhost:43080")
 			return
 		}
 	}
 
 	freshInstall(binSrc, binDst)
+	fmt.Println("\nDashboard: http://localhost:43080")
 }
 
 func handleReinstall(binSrc, binDst string, force bool) {
@@ -90,6 +93,8 @@ func handleReinstall(binSrc, binDst string, force bool) {
 	if !force {
 		fmt.Printf("\nProceed? [Y/n] ")
 		if !askConfirm() {
+			fmt.Println("You can start the server manually with: greyproxy serve")
+			fmt.Println("Dashboard: http://localhost:43080")
 			return
 		}
 	}
@@ -110,6 +115,7 @@ func handleReinstall(binSrc, binDst string, force bool) {
 
 	// 3-5. Fresh install (copy binary, register, start)
 	freshInstall(binSrc, binDst)
+	fmt.Println("\nDashboard: http://localhost:43080")
 }
 
 func freshInstall(binSrc, binDst string) {
