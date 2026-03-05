@@ -63,13 +63,13 @@ func handleInstall(args []string) {
 		return
 	}
 
-	fmt.Printf("This will:\n")
+	fmt.Printf("Ready to install greyproxy. This will:\n")
 	fmt.Printf("  1. Copy %s -> %s\n", binSrc, binDst)
 	fmt.Printf("  2. Install greyproxy as a systemd user service\n")
 	fmt.Printf("  3. Start the service\n")
 
 	if !force {
-		fmt.Printf("\nProceed? [y/N] ")
+		fmt.Printf("\nProceed? [Y/n] ")
 		if !askConfirm() {
 			return
 		}
@@ -80,7 +80,7 @@ func handleInstall(args []string) {
 
 func handleReinstall(binSrc, binDst string, force bool) {
 	fmt.Printf("An existing installation was found at %s\n", binDst)
-	fmt.Printf("\nThis will:\n")
+	fmt.Printf("\nReady to update the existing installation. This will:\n")
 	fmt.Printf("  1. Stop the running service\n")
 	fmt.Printf("  2. Remove the current service registration\n")
 	fmt.Printf("  3. Replace the binary with %s\n", binSrc)
@@ -88,7 +88,7 @@ func handleReinstall(binSrc, binDst string, force bool) {
 	fmt.Printf("  5. Start the service\n")
 
 	if !force {
-		fmt.Printf("\nUpdate existing installation? [y/N] ")
+		fmt.Printf("\nProceed? [Y/n] ")
 		if !askConfirm() {
 			return
 		}
@@ -144,7 +144,7 @@ func freshInstall(binSrc, binDst string) {
 func askConfirm() bool {
 	var answer string
 	fmt.Scanln(&answer)
-	if answer != "y" && answer != "Y" {
+	if answer == "n" || answer == "N" {
 		fmt.Println("Aborted.")
 		return false
 	}
@@ -155,13 +155,13 @@ func handleUninstall(args []string) {
 	force := parseInstallFlags(args)
 	binDst := installBinPath()
 
-	fmt.Printf("This will:\n")
+	fmt.Printf("Ready to uninstall greyproxy. This will:\n")
 	fmt.Printf("  1. Stop the greyproxy service\n")
 	fmt.Printf("  2. Remove the systemd user service\n")
 	fmt.Printf("  3. Remove %s\n", binDst)
 
 	if !force {
-		fmt.Printf("\nProceed? [y/N] ")
+		fmt.Printf("\nProceed? [Y/n] ")
 		if !askConfirm() {
 			return
 		}
