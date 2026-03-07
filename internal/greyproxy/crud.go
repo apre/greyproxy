@@ -57,6 +57,14 @@ func CreateRule(db *DB, input RuleCreateInput) (*Rule, error) {
 		notes = sql.NullString{String: *input.Notes, Valid: true}
 	}
 
+	// Delete any expired rule with the same unique key so the insert won't conflict
+	db.WriteDB().Exec(
+		`DELETE FROM rules
+		 WHERE container_pattern = ? AND destination_pattern = ? AND port_pattern = ? AND action = ?
+		   AND expires_at IS NOT NULL AND expires_at <= datetime('now')`,
+		input.ContainerPattern, input.DestinationPattern, input.PortPattern, input.Action,
+	)
+
 	result, err := db.WriteDB().Exec(
 		`INSERT INTO rules (container_pattern, destination_pattern, port_pattern, rule_type, action, expires_at, created_by, notes)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
