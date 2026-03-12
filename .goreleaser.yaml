@@ -81,9 +81,12 @@ homebrew_casks:
     license: "Apache-2.0"
     binaries:
       - greyproxy
-    preflight: |
-      binary = "#{staged_path}/greyproxy"
-      system_command "/usr/bin/xattr", args: ["-d", "com.apple.quarantine", binary]
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/greyproxy"]
+          end
     dependencies:
       - formula: terminal-notifier
     caveats: |
