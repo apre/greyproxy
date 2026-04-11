@@ -178,8 +178,8 @@ Based on system prompt length (`system[]` blocks total character count):
 |---|---|---|
 | > 10,000 chars | Any | `main` (Claude Code primary conversation) |
 | > 1,000 chars | Any | `subagent` |
-| > 100 chars | <= 2 | `mcp` (MCP utility, discarded) |
-| <= 100 chars | Any | `utility` (discarded) |
+| > 100 chars | &lt;= 2 | `mcp` (MCP utility, discarded) |
+| &lt;= 100 chars | Any | `utility` (discarded) |
 
 ### OpenAI
 
