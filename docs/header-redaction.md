@@ -1,79 +1,73 @@
+---
+id: header-redaction
+title: Header Redaction
+---
+
 # Sensitive Header Redaction
 
-> Available since v0.3.3
+![Redacted headers in activity view](/img/greyproxy/header-redaction.png)
 
-Greyproxy intercepts HTTPS traffic (via MITM) and stores HTTP transactions in its SQLite database for inspection. By default, sensitive header values are replaced with `[REDACTED]` before storage, so credentials never hit the database.
+Greyproxy stores HTTP transactions in its SQLite database for later inspection in the dashboard. To keep credentials out of that database, sensitive header values are replaced with `[REDACTED]` before storage. The original header name is preserved (so you can still tell that an `Authorization` header was present), but the value is gone.
 
-## What gets redacted
+Redaction happens at capture time, before the row is written to disk. Nothing bypasses it, and the database never sees the original value.
 
-The following header patterns are redacted out of the box (case-insensitive):
+## What gets redacted by default
 
-| Pattern                | Matches                                        |
-|------------------------|------------------------------------------------|
-| `Authorization`        | Bearer tokens, Basic auth, OAuth               |
-| `Proxy-Authorization`  | Proxy credentials                              |
-| `Cookie`               | Session cookies, auth cookies                  |
-| `Set-Cookie`           | Response cookies                               |
-| `*api-key*`            | `X-Api-Key`, `Anthropic-Api-Key`, etc.         |
-| `*token*`              | `X-Auth-Token`, `X-Csrf-Token`, etc.           |
-| `*secret*`             | `X-Client-Secret`, etc.                        |
+The following patterns are redacted out of the box. Matching is case-insensitive.
 
-Pattern syntax:
-- **Exact match**: `Authorization` matches only `Authorization`
-- **Contains** (`*word*`): matches any header containing `word`
-- **Starts with** (`word*`): matches headers starting with `word`
-- **Ends with** (`*word`): matches headers ending with `word`
+| Pattern               | Matches                                        |
+|-----------------------|------------------------------------------------|
+| `Authorization`       | Bearer tokens, Basic auth, OAuth               |
+| `Proxy-Authorization` | Proxy credentials                              |
+| `Cookie`              | Session cookies, auth cookies                  |
+| `Set-Cookie`          | Response cookies                               |
+| `*api-key*`           | `X-Api-Key`, `Anthropic-Api-Key`, and similar  |
+| `*token*`             | `X-Auth-Token`, `X-Csrf-Token`, and similar    |
+| `*secret*`            | `X-Client-Secret`, and similar                 |
 
-All matching is case-insensitive.
+Pattern syntax is simple:
 
-## How it works
-
-Redaction happens at capture time, before the transaction is written to SQLite. The original header key is preserved (so you can see that an `Authorization` header was present), but the value is replaced with `[REDACTED]`.
-
-```
-Before:  Authorization: Bearer sk-ant-api03-xxxxx
-After:   Authorization: [REDACTED]
-```
+- `Authorization` is an exact match.
+- `*word*` matches any header name containing `word`.
+- `word*` matches any header name starting with `word`.
+- `*word` matches any header name ending with `word`.
 
 ## Adding custom patterns
 
-You can add extra redaction patterns via the settings API. Custom patterns are merged with the defaults and persisted to `settings.json`.
+You can add extra redaction patterns via the settings API. Custom patterns are merged with the defaults and persisted to the settings file.
 
 ```bash
 # Add custom patterns
 curl -X PUT http://localhost:43080/api/settings \
   -H 'Content-Type: application/json' \
   -d '{"redactedHeaders": ["*password*", "X-My-Internal-Auth"]}'
-```
 
-The response includes the full list of active patterns (defaults + custom):
-
-```bash
-# View current patterns
+# View the full active list (defaults + custom)
 curl http://localhost:43080/api/settings | jq .redactedHeaders
 ```
 
+Only your extra patterns are stored on disk; the default patterns are always applied regardless of what the settings file contains.
+
 ## Redacting existing data
 
-If you have transactions stored before redaction was enabled (or before adding a custom pattern), you can retroactively redact them from the settings UI or via the API:
+If you already have transactions stored from before redaction was enabled (or from before you added a custom pattern), you can run a one-off pass over the database to redact them retroactively.
 
-**UI**: Go to Settings, expand Advanced, and click "Redact stored headers". A progress bar shows real-time status.
+From the dashboard, open **Settings**, expand **Advanced**, and click **Redact stored headers**. A progress bar shows real-time status.
 
-**API**:
+From the API:
+
 ```bash
 curl -X POST http://localhost:43080/api/maintenance/redact-headers
 ```
 
-This runs in the background, processes all stored transactions in batches, and is idempotent (safe to run multiple times). Concurrent runs are rejected with HTTP 409.
+The job runs in the background, processes transactions in batches, and is idempotent, so it is safe to run more than once. Concurrent runs are rejected with HTTP 409.
 
 ## Settings file
 
-Custom patterns are stored in `~/.local/share/greyproxy/settings.json`:
+Custom patterns are stored in `settings.json` under greyproxy's data directory (typically `~/.local/share/greyproxy/settings.json` on Linux and `~/Library/Application Support/greyproxy/settings.json` on macOS):
 
 ```json
 {
   "redactedHeaders": ["*password*", "X-My-Internal-Auth"]
 }
 ```
-
-Only your extra patterns are stored; the defaults are always applied regardless.
