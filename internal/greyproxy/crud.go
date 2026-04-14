@@ -90,7 +90,11 @@ func CreateRule(db *DB, input RuleCreateInput) (*Rule, error) {
 
 // ruleColumns is the SELECT list for all rule queries.
 const ruleColumns = `id, container_pattern, destination_pattern, port_pattern,
-	rule_type, action, created_at, expires_at, last_used_at, created_by, notes`
+	rule_type, action, created_at, expires_at, last_used_at, created_by, notes, session_id`
+
+// ruleColumnsQualified is the SELECT list with rules. prefix for use in JOIN queries.
+const ruleColumnsQualified = `rules.id, rules.container_pattern, rules.destination_pattern, rules.port_pattern,
+	rules.rule_type, rules.action, rules.created_at, rules.expires_at, rules.last_used_at, rules.created_by, rules.notes, rules.session_id`
 
 func GetRule(db *DB, id int64) (*Rule, error) {
 	row := db.ReadDB().QueryRow(
@@ -102,7 +106,7 @@ func GetRule(db *DB, id int64) (*Rule, error) {
 func scanRule(row interface{ Scan(...any) error }) (*Rule, error) {
 	var r Rule
 	err := row.Scan(&r.ID, &r.ContainerPattern, &r.DestinationPattern, &r.PortPattern,
-		&r.RuleType, &r.Action, &r.CreatedAt, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedBy, &r.Notes)
+		&r.RuleType, &r.Action, &r.CreatedAt, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedBy, &r.Notes, &r.SessionID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -166,7 +170,7 @@ func GetRules(db *DB, f RuleFilter) ([]Rule, int, error) {
 	for rows.Next() {
 		var r Rule
 		if err := rows.Scan(&r.ID, &r.ContainerPattern, &r.DestinationPattern, &r.PortPattern,
-			&r.RuleType, &r.Action, &r.CreatedAt, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedBy, &r.Notes); err != nil {
+			&r.RuleType, &r.Action, &r.CreatedAt, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedBy, &r.Notes, &r.SessionID); err != nil {
 			return nil, 0, err
 		}
 		rules = append(rules, r)
@@ -308,11 +312,39 @@ func IngestRules(db *DB, rules []IngestRuleInput) (*IngestResult, error) {
 
 // FindMatchingRule finds the most specific matching rule for the given request.
 // Returns nil if no rule matches (default-deny).
+//
+// Resolution uses a layered model:
+//
+//	Layer 1 (highest): Global rules (human-created via UI/API)
+//	Layer 2:           Session rules (from greywall profile, scoped to session lifetime)
+//	Layer 3 (lowest):  Built-in rules (localhost defaults)
+//
+// The highest-layer match wins. Within the same layer, highest specificity wins,
+// and deny beats allow at the same specificity.
 func FindMatchingRule(db *DB, containerName, destHost string, destPort int, resolvedHostname string) *Rule {
-	// Get all non-expired rules
+	// Get all non-expired rules. For session-scoped rules, JOIN with sessions and
+	// enforce two conditions:
+	//   1. The session itself is still active (not expired/deleted).
+	//   2. The session is the most recently created active session for this container.
+	//      This prevents an older session's rules from bleeding into a newer session
+	//      that was started with a different (or empty) rule set.
+	// Global and built-in rules (session_id IS NULL) are unaffected.
 	rows, err := db.ReadDB().Query(
-		`SELECT ` + ruleColumns + ` FROM rules
-		 WHERE expires_at IS NULL OR expires_at > datetime('now')`,
+		`SELECT `+ruleColumnsQualified+`
+		 FROM rules
+		 LEFT JOIN sessions ON rules.session_id = sessions.session_id
+		 WHERE (rules.expires_at IS NULL OR rules.expires_at > datetime('now'))
+		   AND (rules.session_id IS NULL
+		        OR (sessions.session_id IS NOT NULL
+		            AND sessions.expires_at > datetime('now')
+		            AND sessions.session_id = (
+		                SELECT session_id FROM sessions
+		                WHERE container_name = ?
+		                  AND expires_at > datetime('now')
+		                ORDER BY created_at DESC, rowid DESC
+		                LIMIT 1
+		            )))`,
+		containerName,
 	)
 	if err != nil {
 		return nil
@@ -320,15 +352,16 @@ func FindMatchingRule(db *DB, containerName, destHost string, destPort int, reso
 	defer func() { _ = rows.Close() }()
 
 	type scored struct {
-		rule        Rule
-		specificity int
+		rule           Rule
+		specificity    int
+		sourcePriority int
 	}
 
 	var matches []scored
 	for rows.Next() {
 		var r Rule
 		if err := rows.Scan(&r.ID, &r.ContainerPattern, &r.DestinationPattern, &r.PortPattern,
-			&r.RuleType, &r.Action, &r.CreatedAt, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedBy, &r.Notes); err != nil {
+			&r.RuleType, &r.Action, &r.CreatedAt, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedBy, &r.Notes, &r.SessionID); err != nil {
 			continue
 		}
 
@@ -345,8 +378,9 @@ func FindMatchingRule(db *DB, containerName, destHost string, destPort int, reso
 		}
 
 		matches = append(matches, scored{
-			rule:        r,
-			specificity: CalculateSpecificity(r.ContainerPattern, r.DestinationPattern, r.PortPattern),
+			rule:           r,
+			specificity:    CalculateSpecificity(r.ContainerPattern, r.DestinationPattern, r.PortPattern),
+			sourcePriority: r.RuleSourcePriority(),
 		})
 	}
 
@@ -354,8 +388,12 @@ func FindMatchingRule(db *DB, containerName, destHost string, destPort int, reso
 		return nil
 	}
 
-	// Sort: highest specificity first, deny before allow at same specificity
+	// Sort: source layer first (global > session > builtin),
+	// then specificity within same layer, then deny before allow at same specificity.
 	sort.Slice(matches, func(i, j int) bool {
+		if matches[i].sourcePriority != matches[j].sourcePriority {
+			return matches[i].sourcePriority > matches[j].sourcePriority
+		}
 		if matches[i].specificity != matches[j].specificity {
 			return matches[i].specificity > matches[j].specificity
 		}
@@ -786,7 +824,7 @@ func findExistingRule(db *DB, containerPattern, destPattern, portPattern, action
 		   AND (expires_at IS NULL OR expires_at > datetime('now'))`,
 		containerPattern, destPattern, portPattern, action,
 	).Scan(&r.ID, &r.ContainerPattern, &r.DestinationPattern, &r.PortPattern,
-		&r.RuleType, &r.Action, &r.CreatedAt, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedBy, &r.Notes)
+		&r.RuleType, &r.Action, &r.CreatedAt, &r.ExpiresAt, &r.LastUsedAt, &r.CreatedBy, &r.Notes, &r.SessionID)
 	if err != nil {
 		return nil
 	}
