@@ -28,14 +28,16 @@ func (l *stringList) Set(value string) error {
 }
 
 var (
-	cfgFile      string
-	outputFormat string
-	services     stringList
-	nodes        stringList
-	debug        bool
-	trace        bool
-	metricsAddr  string
-	silentAllow  bool
+	cfgFile            string
+	outputFormat       string
+	services           stringList
+	nodes              stringList
+	debug              bool
+	trace              bool
+	metricsAddr        string
+	silentAllow        bool
+	middlewareURLFlags stringList
+	middlewareCmdFlags stringList
 )
 
 func init() {
@@ -94,7 +96,19 @@ func parseFlags() {
 	flag.BoolVar(&trace, "DD", false, "trace mode")
 	flag.StringVar(&metricsAddr, "metrics", "", "metrics service address")
 	flag.BoolVar(&silentAllow, "silent-allow", false, "activate silent allow-all mode until restart")
+	flag.Var(&middlewareURLFlags, "middleware", "middleware service URL (ws:// or http://); repeatable, cascades in declaration order")
+	flag.Var(&middlewareCmdFlags, "middleware-cmd", "command to spawn as a stdio middleware (e.g. 'uv run mw.py'); repeatable, cascades after --middleware entries")
 	flag.Parse()
+
+	// Normalize http(s):// to ws(s):// for each middleware URL
+	for i, u := range middlewareURLFlags {
+		switch {
+		case strings.HasPrefix(u, "http://"):
+			middlewareURLFlags[i] = "ws://" + strings.TrimPrefix(u, "http://")
+		case strings.HasPrefix(u, "https://"):
+			middlewareURLFlags[i] = "wss://" + strings.TrimPrefix(u, "https://")
+		}
+	}
 
 	if printVersion {
 		_, _ = fmt.Fprintf(os.Stdout, "greyproxy %s (%s %s/%s)\n  built:  %s\n  commit: %s\n",

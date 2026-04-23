@@ -105,6 +105,11 @@ func WithLog(log logger.Logger) HandleOption {
 
 // HTTPRoundTripInfo contains decrypted HTTP request/response data from a MITM round-trip.
 type HTTPRoundTripInfo struct {
+	// RequestID uniquely identifies one MITM round-trip. Generated once per
+	// request and threaded through both the middleware response hook and the
+	// round-trip persistence hook so listeners can correlate decisions back
+	// to the http_transactions row created for this request.
+	RequestID              string
 	Host                   string
 	Method                 string
 	URI                    string
@@ -159,6 +164,27 @@ type HTTPRequestHoldInfo struct {
 // GlobalHTTPRequestHoldHook is called (if set) before forwarding a MITM-intercepted HTTP request upstream.
 // Return nil to allow, ErrRequestDenied to send 403, or block until approval.
 var GlobalHTTPRequestHoldHook func(ctx context.Context, info HTTPRequestHoldInfo) error
+
+// GlobalMitmRequestMiddlewareHook is called (if set) after the hold hook passes
+// but before credential substitution. It receives the mutable *http.Request.
+// Return nil to allow unchanged. Return ErrRequestDenied to block with 403.
+// Mutate req in place to rewrite.
+var GlobalMitmRequestMiddlewareHook func(ctx context.Context, req *http.Request, containerName string) error
+
+// MitmResponseDecision controls the MITM response path.
+// nil = passthrough.
+type MitmResponseDecision struct {
+	Block         bool
+	StatusCode    int
+	BlockBody     string
+	NewStatusCode int
+	NewHeaders    http.Header
+	NewBody       []byte
+}
+
+// GlobalMitmResponseHook is called (if set) after upstream responds but before
+// writing the response to the client. It can block or rewrite the response.
+var GlobalMitmResponseHook func(ctx context.Context, info HTTPRoundTripInfo) *MitmResponseDecision
 
 // CredentialSubstitutionInfo holds the result of a credential substitution pass.
 type CredentialSubstitutionInfo struct {
@@ -416,6 +442,12 @@ func (h *Sniffer) httpRoundTrip(ctx context.Context, rw, cc io.ReadWriteCloser, 
 	*ro2 = *ro
 	ro = ro2
 
+	// Correlate middleware decisions with the http_transactions row that
+	// will be persisted at the end of this round-trip. Threaded via ctx
+	// (for the request/response middleware hooks) and via HTTPRoundTripInfo
+	// (for the persistence hook, which takes no ctx). Same id in both.
+	requestID := NewRequestID()
+	ctx = WithRequestID(ctx, requestID)
 	ro.Time = time.Now()
 	log.Infof("%s <-> %s", ro.RemoteAddr, req.Host)
 	defer func() {
@@ -458,7 +490,7 @@ func (h *Sniffer) httpRoundTrip(ctx context.Context, rw, cc io.ReadWriteCloser, 
 	}
 
 	var reqBody *xhttp.Body
-	captureBody := (h.RecorderOptions != nil && h.RecorderOptions.HTTPBody) || h.OnHTTPRoundTrip != nil || GlobalHTTPRequestHoldHook != nil
+	captureBody := (h.RecorderOptions != nil && h.RecorderOptions.HTTPBody) || h.OnHTTPRoundTrip != nil || GlobalHTTPRequestHoldHook != nil || GlobalMitmRequestMiddlewareHook != nil || GlobalMitmResponseHook != nil
 	if captureBody {
 		if req.Body != nil {
 			bodySize := DefaultBodySize
@@ -516,6 +548,30 @@ func (h *Sniffer) httpRoundTrip(ctx context.Context, rw, cc io.ReadWriteCloser, 
 			close = true
 			return
 		}
+	}
+
+	// Middleware request hook (Step 1.5): can block OR rewrite in one call
+	if mwHook := GlobalMitmRequestMiddlewareHook; mwHook != nil {
+		containerName := string(xctx.ClientIDFromContext(ctx))
+		if containerName == "" {
+			containerName = ro.ClientID
+		}
+		if mwErr := mwHook(ctx, req, containerName); mwErr != nil {
+			// Request denied -- send 403 to client
+			denyResp := &http.Response{
+				StatusCode: http.StatusForbidden,
+				Proto:      req.Proto,
+				ProtoMajor: req.ProtoMajor,
+				ProtoMinor: req.ProtoMinor,
+				Header:     http.Header{"Content-Type": {"text/plain"}},
+				Body:       io.NopCloser(strings.NewReader("Request denied by middleware")),
+			}
+			denyResp.ContentLength = 28
+			denyResp.Write(rw)
+			close = true
+			return
+		}
+		// If no error, req may have been mutated (rewritten) -- proceed
 	}
 
 	// Credential substitution: swap placeholders with real credentials.
@@ -585,6 +641,7 @@ func (h *Sniffer) httpRoundTrip(ctx context.Context, rw, cc io.ReadWriteCloser, 
 				containerName = ro.ClientID
 			}
 			info := HTTPRoundTripInfo{
+				RequestID:       requestID,
 				Host:            req.Host,
 				Method:          req.Method,
 				URI:             req.RequestURI,
@@ -635,6 +692,71 @@ func (h *Sniffer) httpRoundTrip(ctx context.Context, rw, cc io.ReadWriteCloser, 
 		resp.Body = respBody
 	}
 
+	// Middleware response hook (Step 4a): can block or rewrite before client sees it
+	if mwRespHook := GlobalMitmResponseHook; mwRespHook != nil {
+		containerName := string(xctx.ClientIDFromContext(ctx))
+		if containerName == "" {
+			containerName = ro.ClientID
+		}
+		// Build info with what we have so far
+		mwInfo := HTTPRoundTripInfo{
+			RequestID:       requestID,
+			Host:            req.Host,
+			Method:          req.Method,
+			URI:             req.RequestURI,
+			Proto:           req.Proto,
+			StatusCode:      resp.StatusCode,
+			RequestHeaders:  ro.HTTP.Request.Header,
+			ResponseHeaders: resp.Header,
+			ContainerName:   containerName,
+			DurationMs:      time.Since(ro.Time).Milliseconds(),
+		}
+		if reqBody != nil {
+			mwInfo.RequestBody = reqBody.Content()
+		}
+		// Read response body for the hook if captured
+		if respBody != nil {
+			// Force reading so content is available
+			bodyBuf := new(bytes.Buffer)
+			bodyBuf.ReadFrom(resp.Body)
+			mwInfo.ResponseBody = respBody.Content()
+			// Reconstruct body for forwarding
+			resp.Body = io.NopCloser(bodyBuf)
+			resp.ContentLength = int64(bodyBuf.Len())
+		}
+		if decision := mwRespHook(ctx, mwInfo); decision != nil {
+			if decision.Block {
+				status := decision.StatusCode
+				if status == 0 {
+					status = http.StatusBadGateway
+				}
+				synthetic := &http.Response{
+					StatusCode: status,
+					Proto:      "HTTP/1.1", ProtoMajor: 1, ProtoMinor: 1,
+					Header: http.Header{"Content-Type": {"text/plain"}},
+					Body:   io.NopCloser(strings.NewReader(decision.BlockBody)),
+				}
+				synthetic.ContentLength = int64(len(decision.BlockBody))
+				synthetic.Write(rw)
+				close = true
+				return
+			}
+			if decision.NewStatusCode != 0 {
+				resp.StatusCode = decision.NewStatusCode
+			}
+			if decision.NewBody != nil {
+				resp.Body = io.NopCloser(bytes.NewReader(decision.NewBody))
+				resp.ContentLength = int64(len(decision.NewBody))
+				resp.Header.Del("Content-Encoding")
+				resp.Header.Del("Transfer-Encoding")
+				resp.Header.Set("Content-Length", fmt.Sprint(len(decision.NewBody)))
+			}
+			for k, v := range decision.NewHeaders {
+				resp.Header[k] = v
+			}
+		}
+	}
+
 	bw := bufio.NewWriterSize(rw, 8192)
 	err = resp.Write(bw)
 	if fErr := bw.Flush(); err == nil {
@@ -657,6 +779,7 @@ func (h *Sniffer) httpRoundTrip(ctx context.Context, rw, cc io.ReadWriteCloser, 
 			containerName = ro.ClientID
 		}
 		info := HTTPRoundTripInfo{
+			RequestID:       requestID,
 			Host:            req.Host,
 			Method:          req.Method,
 			URI:             req.RequestURI,
@@ -1309,7 +1432,7 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var reqBody *xhttp.Body
-	h2CaptureBody := (h.recorderOptions != nil && h.recorderOptions.HTTPBody) || h.onHTTPRoundTrip != nil
+	h2CaptureBody := (h.recorderOptions != nil && h.recorderOptions.HTTPBody) || h.onHTTPRoundTrip != nil || GlobalMitmRequestMiddlewareHook != nil || GlobalMitmResponseHook != nil
 	if h2CaptureBody {
 		if req.Body != nil {
 			bodySize := DefaultBodySize
@@ -1322,6 +1445,19 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			reqBody = xhttp.NewBody(req.Body, bodySize)
 			req.Body = reqBody
+		}
+	}
+
+	// Middleware request hook (HTTP/2 path): can block or rewrite before upstream
+	if mwHook := GlobalMitmRequestMiddlewareHook; mwHook != nil {
+		containerName := string(xctx.ClientIDFromContext(r.Context()))
+		if containerName == "" {
+			containerName = ro.ClientID
+		}
+		if mwErr := mwHook(r.Context(), req, containerName); mwErr != nil {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte("Request denied by middleware"))
+			return
 		}
 	}
 
@@ -1353,9 +1489,6 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Trace(string(dump))
 	}
 
-	h.setHeader(w, resp.Header)
-	w.WriteHeader(resp.StatusCode)
-
 	var respBody *xhttp.Body
 	if h2CaptureBody {
 		bodySize := DefaultBodySize
@@ -1368,6 +1501,62 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respBody = xhttp.NewBody(resp.Body, bodySize)
 		resp.Body = respBody
 	}
+
+	// Middleware response hook (HTTP/2 path): can block or rewrite before client sees it
+	if mwRespHook := GlobalMitmResponseHook; mwRespHook != nil {
+		containerName := string(xctx.ClientIDFromContext(r.Context()))
+		if containerName == "" {
+			containerName = ro.ClientID
+		}
+		mwInfo := HTTPRoundTripInfo{
+			Host:            r.Host,
+			Method:          r.Method,
+			URI:             r.RequestURI,
+			Proto:           r.Proto,
+			StatusCode:      resp.StatusCode,
+			RequestHeaders:  ro.HTTP.Request.Header,
+			ResponseHeaders: resp.Header,
+			ContainerName:   containerName,
+			DurationMs:      time.Since(ro.Time).Milliseconds(),
+		}
+		if reqBody != nil {
+			mwInfo.RequestBody = reqBody.Content()
+		}
+		if respBody != nil {
+			bodyBuf := new(bytes.Buffer)
+			bodyBuf.ReadFrom(resp.Body)
+			mwInfo.ResponseBody = respBody.Content()
+			resp.Body = io.NopCloser(bodyBuf)
+			resp.ContentLength = int64(bodyBuf.Len())
+		}
+		if decision := mwRespHook(r.Context(), mwInfo); decision != nil {
+			if decision.Block {
+				status := decision.StatusCode
+				if status == 0 {
+					status = http.StatusBadGateway
+				}
+				w.WriteHeader(status)
+				w.Write([]byte(decision.BlockBody))
+				return
+			}
+			if decision.NewStatusCode != 0 {
+				resp.StatusCode = decision.NewStatusCode
+			}
+			if decision.NewBody != nil {
+				resp.Body = io.NopCloser(bytes.NewReader(decision.NewBody))
+				resp.ContentLength = int64(len(decision.NewBody))
+				resp.Header.Del("Content-Encoding")
+				resp.Header.Del("Transfer-Encoding")
+				resp.Header.Set("Content-Length", fmt.Sprint(len(decision.NewBody)))
+			}
+			for k, v := range decision.NewHeaders {
+				resp.Header[k] = v
+			}
+		}
+	}
+
+	h.setHeader(w, resp.Header)
+	w.WriteHeader(resp.StatusCode)
 
 	io.Copy(w, resp.Body)
 

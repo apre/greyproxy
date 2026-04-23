@@ -10,6 +10,11 @@ import (
 // MitmRoundTripInfo contains decrypted HTTP request/response data from a MITM round-trip.
 // This re-exports the internal sniffing type for use outside the gostx/internal package.
 type MitmRoundTripInfo struct {
+	// RequestID uniquely identifies one MITM round-trip. Threaded through
+	// both the middleware response hook and the round-trip persistence hook
+	// so subscribers can correlate decisions back to the http_transactions
+	// row created for this request.
+	RequestID              string
 	Host                   string
 	Method                 string
 	URI                    string
@@ -75,6 +80,7 @@ func SetGlobalMitmHook(hook func(info MitmRoundTripInfo)) {
 	}
 	sniffing.GlobalHTTPRoundTripHook = func(info sniffing.HTTPRoundTripInfo) {
 		hook(MitmRoundTripInfo{
+			RequestID:              info.RequestID,
 			Host:                   info.Host,
 			Method:                 info.Method,
 			URI:                    info.URI,
@@ -150,5 +156,79 @@ func SetGlobalMitmHoldHook(hook func(ctx context.Context, info MitmRequestHoldIn
 			RequestBody:    info.RequestBody,
 			ContainerName:  info.ContainerName,
 		})
+	}
+}
+
+// GlobalMitmRequestMiddlewareHook is called after the hold hook passes but
+// before credential substitution. It receives the mutable *http.Request.
+// Return nil to allow unchanged. Return ErrRequestDenied to block.
+// Mutate req in place to rewrite.
+var GlobalMitmRequestMiddlewareHook func(
+	ctx context.Context,
+	req *http.Request,
+	containerName string,
+) error
+
+// SetGlobalMitmRequestMiddlewareHook sets the middleware request hook for the MITM pipeline.
+func SetGlobalMitmRequestMiddlewareHook(
+	hook func(ctx context.Context, req *http.Request, containerName string) error,
+) {
+	GlobalMitmRequestMiddlewareHook = hook
+	sniffing.GlobalMitmRequestMiddlewareHook = hook
+}
+
+// MitmResponseDecision controls the MITM response path.
+// nil = passthrough.
+type MitmResponseDecision struct {
+	Block         bool
+	StatusCode    int
+	BlockBody     string
+	NewStatusCode int
+	NewHeaders    http.Header
+	NewBody       []byte
+}
+
+// GlobalMitmResponseHook is called after upstream responds but before writing
+// the response to the client. It can block or rewrite the response.
+var GlobalMitmResponseHook func(
+	ctx context.Context,
+	info MitmRoundTripInfo,
+) *MitmResponseDecision
+
+// SetGlobalMitmResponseHook sets the middleware response hook for the MITM pipeline.
+func SetGlobalMitmResponseHook(
+	hook func(ctx context.Context, info MitmRoundTripInfo) *MitmResponseDecision,
+) {
+	GlobalMitmResponseHook = hook
+	if hook == nil {
+		sniffing.GlobalMitmResponseHook = nil
+		return
+	}
+	sniffing.GlobalMitmResponseHook = func(ctx context.Context, info sniffing.HTTPRoundTripInfo) *sniffing.MitmResponseDecision {
+		d := hook(ctx, MitmRoundTripInfo{
+			RequestID:       info.RequestID,
+			Host:            info.Host,
+			Method:          info.Method,
+			URI:             info.URI,
+			Proto:           info.Proto,
+			StatusCode:      info.StatusCode,
+			RequestHeaders:  info.RequestHeaders,
+			RequestBody:     info.RequestBody,
+			ResponseHeaders: info.ResponseHeaders,
+			ResponseBody:    info.ResponseBody,
+			ContainerName:   info.ContainerName,
+			DurationMs:      info.DurationMs,
+		})
+		if d == nil {
+			return nil
+		}
+		return &sniffing.MitmResponseDecision{
+			Block:         d.Block,
+			StatusCode:    d.StatusCode,
+			BlockBody:     d.BlockBody,
+			NewStatusCode: d.NewStatusCode,
+			NewHeaders:    d.NewHeaders,
+			NewBody:       d.NewBody,
+		}
 	}
 }
